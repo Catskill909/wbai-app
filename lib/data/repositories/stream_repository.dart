@@ -319,7 +319,7 @@ class StreamRepository {
         _updateMediaMetadata(metadata);
         // REMOVED: Second delayed update that was causing race conditions
       } else {
-        LoggerService.error('🎵 METADATA MISSING! Fetch returned null');
+        LoggerService.debug('🎵 Metadata not yet available');
       }
     } catch (e) {
       LoggerService.streamError('Error refreshing metadata', e);

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:logging/logging.dart';
 
 class LoggerService {
@@ -8,7 +7,7 @@ class LoggerService {
   static void init() {
     if (_initialized) return;
 
-    Logger.root.level = Level.ALL;
+    Logger.root.level = Level.INFO;
     Logger.root.onRecord.listen((record) {
       // In development, print to console
       // In production, this could be integrated with a crash reporting service
@@ -16,9 +15,8 @@ class LoggerService {
           '${record.loggerName}: ${record.message}';
 
       if (record.error != null) {
-        // Handle errors differently if needed
-        Zone.current.handleUncaughtError(
-            record.error!, record.stackTrace ?? StackTrace.empty);
+        // ignore: avoid_print
+        print('  error: ${record.error}');
       }
 
       // Add your preferred logging destination here

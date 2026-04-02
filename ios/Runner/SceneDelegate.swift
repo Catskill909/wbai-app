@@ -71,7 +71,6 @@ class SceneDelegate: FlutterSceneDelegate {
 
     override func sceneDidBecomeActive(_ scene: UIScene) {
         print("[LIFECYCLE] Scene did become active")
-        configureAudioSession()
 
         if let title = lastTitle, let artist = lastArtist, let isPlaying = lastIsPlaying {
             print("[LIFECYCLE] Refreshing metadata on become active: \(title) by \(artist)")
@@ -91,7 +90,6 @@ class SceneDelegate: FlutterSceneDelegate {
 
     override func sceneWillEnterForeground(_ scene: UIScene) {
         print("[LIFECYCLE] Scene will enter foreground")
-        configureAudioSession()
     }
 
     override func sceneDidEnterBackground(_ scene: UIScene) {
