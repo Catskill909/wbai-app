@@ -32,6 +32,7 @@ class _PacificaAppsView extends StatelessWidget {
       backgroundColor: Color(0xFF18191A),
       appBar: AppBar(
         backgroundColor: Color(0xFF18191A),
+        iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           'Pacifica Foundation',
           style: AppTextStyles.drawerTitle.copyWith(color: Colors.white),
