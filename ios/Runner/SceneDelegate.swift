@@ -69,7 +69,7 @@ class SceneDelegate: FlutterSceneDelegate {
         setupRemoteCommandCenter()
     }
 
-    func sceneDidBecomeActive(_ scene: UIScene) {
+    override func sceneDidBecomeActive(_ scene: UIScene) {
         print("[LIFECYCLE] Scene did become active")
         configureAudioSession()
 
@@ -89,12 +89,12 @@ class SceneDelegate: FlutterSceneDelegate {
         }
     }
 
-    func sceneWillEnterForeground(_ scene: UIScene) {
+    override func sceneWillEnterForeground(_ scene: UIScene) {
         print("[LIFECYCLE] Scene will enter foreground")
         configureAudioSession()
     }
 
-    func sceneDidEnterBackground(_ scene: UIScene) {
+    override func sceneDidEnterBackground(_ scene: UIScene) {
         print("[LIFECYCLE] Scene did enter background")
         // Audio continues in background — no session deactivation
     }
