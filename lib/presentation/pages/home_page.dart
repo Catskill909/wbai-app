@@ -49,7 +49,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             Text(
               message,
-              style: AppTextStyles.bodyMedium,
+              style: AppTextStyles.bodyMedium.copyWith(color: Colors.white),
               textAlign: TextAlign.center,
             ),
           ],
@@ -145,7 +145,7 @@ class _HomePageState extends State<HomePage> {
                   : (_isMediumTablet(context)
                       ? 38
                       : (_isSmallPhone(context) ? 26 : 30)),
-              color: Colors.white,
+              color: Colors.black,
             ),
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
@@ -169,7 +169,7 @@ class _HomePageState extends State<HomePage> {
                   : (_isMediumTablet(context)
                       ? 38
                       : (_isSmallPhone(context) ? 26 : 30)),
-              color: Colors.white,
+              color: Colors.black,
             ),
             onPressed: () => _navigateToSettings(context),
           ),
@@ -433,8 +433,10 @@ class _HomePageState extends State<HomePage> {
                                 : 'Double tap to ${state.playbackState == StreamState.playing ? 'stop and reset' : 'play'}',
                             liveRegion: _showLocalLoading,
                             child: Material(
-                              color: const Color(0xFF0F0404),
-                              shape: const CircleBorder(),
+                              color: Colors.white,
+                              shape: const CircleBorder(
+                                side: BorderSide(color: Colors.black87, width: 2),
+                              ),
                               elevation: 4,
                               child: InkWell(
                                 customBorder: const CircleBorder(),
@@ -516,7 +518,7 @@ class _HomePageState extends State<HomePage> {
                                             child: CircularProgressIndicator(
                                               valueColor:
                                                   AlwaysStoppedAnimation<Color>(
-                                                      Colors.white),
+                                                      Colors.black87),
                                               strokeWidth: 4.0,
                                               strokeCap: StrokeCap.round,
                                             ),
@@ -532,7 +534,7 @@ class _HomePageState extends State<HomePage> {
                                                         600
                                                     ? 150.0
                                                     : 120.0),
-                                            color: Colors.white,
+                                            color: Colors.black87,
                                           ),
                                   ),
                                 ),

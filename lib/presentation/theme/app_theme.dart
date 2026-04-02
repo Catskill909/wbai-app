@@ -13,19 +13,19 @@ class WBAIColors {
 class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData.dark().copyWith(
-      scaffoldBackgroundColor: WBAIColors.darkBrown,
-      colorScheme: const ColorScheme.dark(
+      scaffoldBackgroundColor: WBAIColors.white,
+      colorScheme: const ColorScheme.light(
         primary: WBAIColors.blue,
         secondary: WBAIColors.midGray,
-        surface: WBAIColors.darkBrown,
+        surface: WBAIColors.white,
         onPrimary: WBAIColors.white,
         onSecondary: WBAIColors.white,
-        onSurface: WBAIColors.white,
+        onSurface: WBAIColors.darkBrown,
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: WBAIColors.white,
+        foregroundColor: WBAIColors.darkBrown,
       ),
       cardTheme: const CardThemeData(
         color: WBAIColors.midGray,
