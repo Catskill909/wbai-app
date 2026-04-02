@@ -1,0 +1,90 @@
+name: wbai_radio
+description: "WBAI Radio Streaming App"
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Audio Packages - EXACT versions from working Pacifica app
+  just_audio: ^0.9.35
+  audio_service: ^0.18.12
+  audio_session: ^0.1.14
+
+  # WebView Package
+  flutter_inappwebview: ^6.1.8
+
+  # State Management
+  flutter_bloc: ^9.1.0
+  # get_it: ^8.0.3  # REMOVED: Conflicts with AudioService - using service locator pattern instead
+
+  # Network & Storage
+  dio: ^5.8.0
+  http: ^1.1.0
+  connectivity_plus: ^6.1.3
+  path_provider: ^2.1.2
+  shared_preferences: ^2.2.2
+  url_launcher: ^6.3.1
+
+  # Logging
+  logging: ^1.2.0
+
+  # UI Packages
+  cupertino_icons: ^1.0.8
+  flutter_svg: ^2.0.9
+  cached_network_image: ^3.3.1
+  google_fonts: ^6.2.1
+  flutter_native_splash: ^2.4.7
+  equatable: ^2.0.7
+  # radio_player: ^1.7.1  # REMOVED: Competing audio system conflicts with audio_service
+  xml: ^6.5.0
+  
+  # CRITICAL: Add missing stream management (from working Pacifica app)
+  rxdart: ^0.28.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+  # Icon Generation
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+
+# App Icon Configuration
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  web:
+    generate: false
+  windows:
+    generate: false
+  macos:
+    generate: false
+
+# Splash Screen Configuration - DEVICE OPTIMIZED SOLUTION
+flutter_native_splash:
+  color: "#3B2828"
+  image: assets/icons/splash_icon_fixed.png
+  android_gravity: center
+  
+  android_12:
+    image: assets/icons/splash_icon_fixed.png
+    icon_background_color: "#3B2828"
+
+  web: false
+  ios: true
+  android: true

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- WPFW Radio App Colors -->
+    
+    <!-- Notification colors -->
+    <color name="notification_accent_color">#FF6B6B</color>  <!-- Light red -->
+    <color name="notification_text_color">#FF6B6B</color>    <!-- Light red text -->
+    
+    <!-- Media notification colors -->
+    <color name="media_notification_primary_color">#FF6B6B</color>
+    <color name="media_notification_secondary_color">#FF6B6B</color>
+    
+    <!-- AudioService notification colors -->
+    <color name="audio_service_notification_color">#FF6B6B</color>
+</resources>

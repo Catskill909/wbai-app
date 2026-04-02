@@ -1,0 +1,96 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    throw GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+// Keystore properties removed - will be configured later for new app
+
+android {
+    namespace "app.pacifica.wbai"
+    compileSdk 36  // Updated to 36 for plugin compatibility and latest Android features
+    // NDK version will use Flutter's default (supports 16KB page sizes)
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "app.pacifica.wbai"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion 35  // API 35 (Android 15) - Required for Play Store
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        
+        // 16KB page size support configuration
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+    }
+
+    // Signing configs removed - will be configured later with new keystore
+
+    // 16KB page size packaging configuration
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false  // Use new 16KB-aligned packaging
+        }
+    }
+    
+    buildTypes {
+        release {
+            // signingConfig will be added later with new keystore
+            minifyEnabled false
+            shrinkResources false  // Explicitly disable resource shrinking for debug builds
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            shrinkResources false  // Explicitly disable for debug builds
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    
+    // CRITICAL: Samsung MediaSession dependencies (AndroidX compatible)
+    implementation 'androidx.media:media:1.6.0'
+    implementation 'androidx.core:core:1.10.1'
+}
