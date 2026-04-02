@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "WBAI Radio (iOS)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug",
+      "args": [
+        "--no-dds",
+        "-d",
+        "iPhone"
+      ]
+    }
+  ]
+}
