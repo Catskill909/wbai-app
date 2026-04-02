@@ -5,7 +5,7 @@ import '../domain/models/stream_metadata.dart';
 
 class MetadataService {
   static const String _apiUrl =
-      'https://www.kpfk.org/playlist/_pl_current_ary.php';
+      'https://confessor.kpfk.org/playlist/_pl_current_ary.php';
   static const Duration _refreshInterval = Duration(seconds: 30);
   static const Duration _timeout = Duration(seconds: 5);
 
@@ -19,6 +19,7 @@ class MetadataService {
     _dio.options.receiveTimeout = _timeout;
     _dio.options.headers = {'Accept': 'application/json'};
     _dio.options.responseType = ResponseType.plain;
+    _fetchMetadata();
   }
 
   Stream<StreamMetadata> get metadataStream => _metadataController.stream;
