@@ -7,7 +7,7 @@ import '../domain/models/stream_metadata.dart';
 /// This bypasses Flutter's audio plugins and directly uses MPNowPlayingInfoCenter
 class IOSLockscreenService {
   // CRITICAL: This MUST match exactly the channel name in AppDelegate.swift
-  static const MethodChannel _channel = MethodChannel('com.wpfwfm.radio/now_playing');
+  static const MethodChannel _channel = MethodChannel('com.wbaifm.radio/now_playing');
   
   /// Updates the iOS lockscreen with current show metadata
   Future<void> updateLockscreen({

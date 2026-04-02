@@ -5,7 +5,7 @@ import '../domain/models/stream_metadata.dart';
 
 class MetadataService {
   static const String _apiUrl =
-      'https://www.wbai.org/playlist/_pl_current_ary.php';
+      'https://www.kpfk.org/playlist/_pl_current_ary.php'; // TODO: replace with WBAI feed when ready
   static const Duration _refreshInterval =
       Duration(seconds: 15); // More frequent updates
   static const Duration _timeout = Duration(seconds: 5);

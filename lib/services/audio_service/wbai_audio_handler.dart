@@ -72,13 +72,12 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       LoggerService.info(
           '🎵 AudioHandler: Initializing with EXPERT M3U parsing');
 
-      // CRITICAL: Configure audio session for Samsung lockscreen controls
-      // This is what Samsung J7 needs to show lockscreen controls
+      // Configure audio session category - do NOT activate until user presses play
+      // Activating at startup causes iOS paramErr (-50) before foreground audio is allowed
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
-      await session.setActive(true);
       LoggerService.info(
-          '🎯 SAMSUNG FIX: Audio session configured and activated for lockscreen controls');
+          '🎯 SAMSUNG FIX: Audio session configured for lockscreen controls');
 
       // EXPERT SOLUTION: Parse M3U playlist to get direct stream URL
       final directStreamUrl = await _resolveStreamUrl(_streamUrl);
