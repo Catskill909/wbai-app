@@ -104,10 +104,11 @@ class SceneDelegate: FlutterSceneDelegate {
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
+            // Only set category — do NOT activate here. Session is activated
+            // by the Dart audio handler when the user presses play.
             try session.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP, .allowAirPlay])
-            print("[AUDIO] Session category configured")
         } catch {
-            print("[AUDIO] Session configuration error: \(error)")
+            print("[AUDIO] Session category error: \(error)")
         }
     }
 

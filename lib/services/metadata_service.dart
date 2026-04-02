@@ -59,7 +59,7 @@ class MetadataService {
       _updateMetadata(metadata);
       return metadata;
     } catch (e) {
-      LoggerService.error('🎵 MetadataService: Manual fetch FAILED: $e');
+      LoggerService.debug('🎵 MetadataService: Manual fetch failed: $e');
       return _lastMetadata;
     }
   }
@@ -70,13 +70,9 @@ class MetadataService {
       LoggerService.info(
           '🎵 Periodic fetch SUCCESS: Show="${metadata.current.showName}", Host="${metadata.current.host}"');
       _updateMetadata(metadata);
-    } catch (e, stackTrace) {
-      LoggerService.metadataError('Error fetching metadata', e);
-      LoggerService.debug('Stack trace: $stackTrace');
-      // If we have last metadata, keep using it
+    } catch (e) {
+      LoggerService.debug('Metadata fetch failed: $e');
       if (_lastMetadata != null) {
-        LoggerService.debug(
-            'Using cached metadata: ${_lastMetadata.toString()}');
         _metadataController.add(_lastMetadata!);
       }
     }
@@ -86,30 +82,17 @@ class MetadataService {
     LoggerService.debug('Fetching from API: $_apiUrl');
     try {
       final response = await _dio.get(_apiUrl);
-      LoggerService.debug('API Response status: ${response.statusCode}');
-      LoggerService.debug('API Response headers: ${response.headers}');
-
       if (response.statusCode == 200) {
         final data = response.data as String;
-        LoggerService.debug('Raw API response: $data');
-        try {
-          final metadata = StreamMetadata.fromJson(data);
-          LoggerService.debug(
-              'Successfully parsed metadata: ${metadata.toString()}');
-          return metadata;
-        } catch (parseError, stackTrace) {
-          LoggerService.metadataError('Failed to parse metadata', parseError);
-          LoggerService.debug('Parse error stack trace: $stackTrace');
-          rethrow;
-        }
-      } else {
-        throw DioException(
-          requestOptions: RequestOptions(path: _apiUrl),
-          error: 'Failed to fetch metadata: ${response.statusCode}',
-        );
+        return StreamMetadata.fromJson(data);
       }
+      throw Exception('Metadata fetch returned ${response.statusCode}');
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      LoggerService.debug('Metadata fetch failed (status=$status) — feed unavailable');
+      throw Exception('Metadata unavailable (status=$status)');
     } catch (e) {
-      LoggerService.metadataError('Error in _fetchFromApi', e);
+      LoggerService.debug('Metadata fetch error: $e');
       rethrow;
     }
   }

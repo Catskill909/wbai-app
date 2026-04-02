@@ -170,10 +170,8 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     mediaItem.add(shouldShowPlayer ? _currentMediaItem : null);
 
-    LoggerService.info(
-        '🎯 ONE TRUTH: _broadcastState called - MediaItem=${_currentMediaItem?.title}, playing=${_player.playing}, state=${_player.processingState}');
-    LoggerService.info(
-        '🎯 ONE TRUTH: This is the SINGLE SOURCE for all mediaItem.add() calls');
+    LoggerService.debug(
+        '🎯 _broadcastState: MediaItem=${_currentMediaItem?.title}, playing=${_player.playing}, state=${_player.processingState}');
   }
 
   void _handlePlayerState(PlayerState state) {
