@@ -34,7 +34,7 @@ class _PacificaAppsView extends StatelessWidget {
         backgroundColor: Color(0xFF18191A),
         title: Text(
           'Pacifica Foundation',
-          style: AppTextStyles.drawerTitle,
+          style: AppTextStyles.drawerTitle.copyWith(color: Colors.white),
         ),
       ),
       body: BlocBuilder<PacificaBloc, PacificaState>(
@@ -228,7 +228,7 @@ class PacificaItemDetail extends StatelessWidget {
         backgroundColor: Color(0xFF18191A),
         title: Text(
           'Pacifica Foundation',
-          style: AppTextStyles.drawerTitle,
+          style: AppTextStyles.drawerTitle.copyWith(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
