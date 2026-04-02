@@ -11,7 +11,7 @@ class AppTextStyles {
   static TextStyle get drawerTitle => GoogleFonts.oswald(
         fontSize: 24,
         fontWeight: FontWeight.bold,
-        color: Colors.white,
+        color: Colors.black,
         letterSpacing: 0.5,
       );
 
@@ -45,7 +45,7 @@ class AppTextStyles {
   static TextStyle get drawerMenuItem => GoogleFonts.oswald(
         fontSize: 16,
         fontWeight: FontWeight.w400,
-        color: Colors.white,
+        color: Colors.black,
         letterSpacing: 0.5,
       );
 
@@ -53,7 +53,7 @@ class AppTextStyles {
   static TextStyle drawerMenuItemForDevice(Size size) => GoogleFonts.oswald(
         fontSize: _isSmallPhone(size) ? 13.0 : (size.shortestSide > 600 ? 20.0 : 16.0),
         fontWeight: FontWeight.w400,
-        color: Colors.white,
+        color: Colors.black,
         letterSpacing: 0.5,
       );
 

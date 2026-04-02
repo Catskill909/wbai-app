@@ -38,28 +38,22 @@ class AppDrawer extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           IconButton(
-            icon: Icon(Icons.facebook, size: iconSize, color: Colors.white),
+            icon: Icon(Icons.facebook, size: iconSize, color: Colors.black),
             tooltip: 'Facebook',
             onPressed: () => _launchUrl(StreamConstants.facebookUrl),
           ),
           IconButton(
-            icon: Icon(Icons.camera_alt, size: iconSize, color: Colors.white),
+            icon: Icon(Icons.camera_alt, size: iconSize, color: Colors.black),
             tooltip: 'Instagram',
             onPressed: () => _launchUrl(StreamConstants.instagramUrl),
           ),
-          IconButton(
-            icon: Icon(Icons.play_circle_filled,
-                size: iconSize, color: Colors.white),
-            tooltip: 'YouTube',
-            onPressed: () => _launchUrl(StreamConstants.youtubeUrl),
-          ),
-          IconButton(
-            icon: Icon(Icons.message, size: iconSize, color: Colors.white),
+IconButton(
+            icon: Icon(Icons.message, size: iconSize, color: Colors.black),
             tooltip: 'Twitter',
             onPressed: () => _launchUrl(StreamConstants.twitterUrl),
           ),
           IconButton(
-            icon: Icon(Icons.email, size: iconSize, color: Colors.white),
+            icon: Icon(Icons.email, size: iconSize, color: Colors.black),
             tooltip: 'Email Us',
             onPressed: _launchEmail,
           ),
@@ -77,7 +71,7 @@ class AppDrawer extends StatelessWidget {
     final iconSize = isSmallPhone ? 20.0 : 28.0;
     final listTileHorizontalPadding = isSmallPhone ? 12.0 : 24.0;
     final listTileVerticalPadding =
-        isSmallPhone ? 1.0 : 8.0; // Drastically reduce vertical spacing
+        isSmallPhone ? 1.0 : 2.0; // Drastically reduce vertical spacing
 
     return Drawer(
       child: Container(
@@ -96,7 +90,7 @@ class AppDrawer extends StatelessWidget {
                   ? 60.0
                   : null, // Even smaller header for small devices
               decoration: const BoxDecoration(
-                color: Colors.black,
+                color: Colors.white,
               ),
               child: isSmallPhone
                   ? Center(
@@ -108,7 +102,7 @@ class AppDrawer extends StatelessWidget {
                     )
                   : DrawerHeader(
                       decoration: const BoxDecoration(
-                        color: Colors.black,
+                        color: Colors.white,
                       ),
                       child: Center(
                         child: Padding(
@@ -126,7 +120,7 @@ class AppDrawer extends StatelessWidget {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: Icon(Icons.home, size: iconSize),
+                      leading: Icon(Icons.home, size: iconSize, color: Colors.black),
                       title: Text(
                         'Home',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -146,7 +140,7 @@ class AppDrawer extends StatelessWidget {
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.calendar_month, size: iconSize),
+                      leading: Icon(Icons.calendar_month, size: iconSize, color: Colors.black),
                       title: Text(
                         'Program Schedule',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -167,7 +161,7 @@ class AppDrawer extends StatelessWidget {
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.music_note, size: iconSize),
+                      leading: Icon(Icons.music_note, size: iconSize, color: Colors.black),
                       title: Text(
                         'Playlist Archive',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -188,7 +182,7 @@ class AppDrawer extends StatelessWidget {
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.radio, size: iconSize),
+                      leading: Icon(Icons.radio, size: iconSize, color: Colors.black),
                       title: Text(
                         'Show Archive',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -209,7 +203,7 @@ class AppDrawer extends StatelessWidget {
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.attach_money, size: iconSize),
+                      leading: Icon(Icons.attach_money, size: iconSize, color: Colors.black),
                       title: Text(
                         'Donate',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -230,7 +224,7 @@ class AppDrawer extends StatelessWidget {
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.language, size: iconSize),
+                      leading: Icon(Icons.language, size: iconSize, color: Colors.black),
                       title: Text(
                         'WBAI Website',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -251,7 +245,7 @@ class AppDrawer extends StatelessWidget {
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.info, size: iconSize),
+                      leading: Icon(Icons.info, size: iconSize, color: Colors.black),
                       title: Text(
                         'About Pacifica',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -272,7 +266,7 @@ class AppDrawer extends StatelessWidget {
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.privacy_tip, size: iconSize),
+                      leading: Icon(Icons.privacy_tip, size: iconSize, color: Colors.black),
                       title: Text(
                         'Privacy Policy',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -297,10 +291,10 @@ class AppDrawer extends StatelessWidget {
               ),
             ),
             Container(
-              color: Colors.black,
+              color: Colors.white,
               child: Column(
                 children: [
-                  const Divider(height: 1, color: Colors.white24),
+                  const Divider(height: 1, color: Colors.black26),
                   _buildSocialIcons(context),
                   SizedBox(
                       height: isSmallPhone

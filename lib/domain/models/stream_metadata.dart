@@ -29,7 +29,7 @@ class ShowInfo extends Equatable {
     final bigPix = json['big_pix'];
     if (bigPix != null && bigPix.toString().isNotEmpty) {
       // Use the base URL from the feed's global settings
-      imageUrl = 'https://www.wbai.org/pix/$bigPix';
+      imageUrl = 'https://confessor.kpfk.org/pix/$bigPix';
     }
 
     return ShowInfo(

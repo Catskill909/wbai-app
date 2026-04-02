@@ -264,12 +264,12 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final session = await AudioSession.instance;
       final success = await session.setActive(true);
       if (!success) {
-        LoggerService.error(
-            '🎯 SAMSUNG FIX: Failed to gain audio focus - lockscreen controls may not work');
-        return;
+        LoggerService.warning(
+            '🎯 SAMSUNG FIX: Failed to gain audio focus - lockscreen controls may not work, but continuing playback');
+      } else {
+        LoggerService.info(
+            '🎯 SAMSUNG FIX: Audio focus gained successfully - lockscreen controls should now work');
       }
-      LoggerService.info(
-          '🎯 SAMSUNG FIX: Audio focus gained successfully - lockscreen controls should now work');
 
       // CACHE FIX: ALWAYS set fresh AudioSource - never trust existing one
       // This ensures every play button press behaves like app startup (fresh stream)

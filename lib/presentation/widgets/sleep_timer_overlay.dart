@@ -55,7 +55,6 @@ class _SleepTimerViewState extends State<_SleepTimerView>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     const accent = WBAIColors.blue;
     return Material(
       color: Colors.black.withValues(alpha: 0.6),
@@ -68,17 +67,17 @@ class _SleepTimerViewState extends State<_SleepTimerView>
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               child: BlocConsumer<SleepTimerCubit, SleepTimerState>(
                 listener: (context, state) {
                   if (state is SleepTimerCompleted) {
@@ -98,23 +97,36 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Header
                       Row(
                         children: [
-                          Text('Sleep Timer',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              )),
+                          const Icon(Icons.bedtime_outlined,
+                              color: accent, size: 22),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Sleep Timer',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
                           const Spacer(),
                           IconButton(
-                            icon: const Icon(Icons.close),
+                            icon: Icon(Icons.close,
+                                color: Colors.grey.shade500, size: 20),
                             onPressed: () => Navigator.of(context).maybePop(),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 20),
+                      // Timer ring
                       _TimerRing(
                           remaining: remaining, total: total, accent: accent),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
+                      // Preset buttons
                       _PresetRow(
                         onSelect: (m) =>
                             context.read<SleepTimerCubit>().setMinutes(m),
@@ -122,7 +134,8 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                         disabled: isRunning || isPaused,
                         accent: accent,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
+                      // Slider
                       _MinutesSlider(
                         value: total.inMinutes.toDouble(),
                         onChanged: (v) => context
@@ -131,59 +144,110 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                         disabled: isRunning || isPaused,
                         accent: accent,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
+                      // Action buttons
                       Row(
                         children: [
                           Expanded(
-                            child: isRunning
-                                ? FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: accent,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    onPressed: () =>
-                                        context.read<SleepTimerCubit>().pause(),
-                                    child: const Text('Pause'),
-                                  )
-                                : isPaused
-                                    ? FilledButton(
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: accent,
-                                          foregroundColor: Colors.white,
+                            child: SizedBox(
+                              height: 48,
+                              child: isRunning
+                                  ? ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: accent,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
-                                        onPressed: () => context
-                                            .read<SleepTimerCubit>()
-                                            .resume(),
-                                        child: const Text('Resume'),
-                                      )
-                                    : FilledButton(
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: accent,
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        onPressed: () => context
-                                            .read<SleepTimerCubit>()
-                                            .start(),
-                                        child: const Text('Start'),
                                       ),
+                                      onPressed: () => context
+                                          .read<SleepTimerCubit>()
+                                          .pause(),
+                                      child: const Text('Pause',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600)),
+                                    )
+                                  : isPaused
+                                      ? ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: accent,
+                                            foregroundColor: Colors.white,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                          onPressed: () => context
+                                              .read<SleepTimerCubit>()
+                                              .resume(),
+                                          child: const Text('Resume',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.w600)),
+                                        )
+                                      : ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: accent,
+                                            foregroundColor: Colors.white,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                          onPressed: () => context
+                                              .read<SleepTimerCubit>()
+                                              .start(),
+                                          child: const Text('Start',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.w600)),
+                                        ),
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: isBeforeStart
-                                ? OutlinedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).maybePop(),
-                                    child: const Text('Close'),
-                                  )
-                                : OutlinedButton(
-                                    onPressed: () {
-                                      context
-                                          .read<SleepTimerCubit>()
-                                          .cancelTimer();
-                                      Navigator.of(context).maybePop();
-                                    },
-                                    child: const Text('Cancel'),
-                                  ),
+                            child: SizedBox(
+                              height: 48,
+                              child: isBeforeStart
+                                  ? OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.black87,
+                                        side: BorderSide(
+                                            color: Colors.grey.shade300),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.of(context).maybePop(),
+                                      child: const Text('Close',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600)),
+                                    )
+                                  : OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.red.shade400,
+                                        side: BorderSide(
+                                            color: Colors.red.shade200),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        context
+                                            .read<SleepTimerCubit>()
+                                            .cancelTimer();
+                                        Navigator.of(context).maybePop();
+                                      },
+                                      child: const Text('Cancel',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600)),
+                                    ),
+                            ),
                           ),
                         ],
                       ),
@@ -213,34 +277,50 @@ class _PresetRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final options = const [15, 30, 60];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    const options = [15, 30, 60];
+    return Row(
       children: [
-        for (final m in options)
-          ChoiceChip(
-            label: Text('$m min'),
-            selected: currentMinutes == m,
-            onSelected: disabled ? null : (_) => onSelect(m),
-            selectedColor: accent.withValues(alpha: 0.25),
-            labelStyle: TextStyle(
-              color: currentMinutes == m ? Colors.white : null,
-              fontWeight: currentMinutes == m ? FontWeight.w600 : null,
-            ),
-            shape: StadiumBorder(
-              side: BorderSide(
-                color: currentMinutes == m ? accent : Colors.white24,
+        for (int i = 0; i < options.length; i++) ...[
+          Expanded(
+            child: GestureDetector(
+              onTap: disabled ? null : () => onSelect(options[i]),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                height: 44,
+                decoration: BoxDecoration(
+                  color: currentMinutes == options[i]
+                      ? accent
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: currentMinutes == options[i]
+                        ? accent
+                        : Colors.grey.shade300,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${options[i]} min',
+                  style: TextStyle(
+                    color: currentMinutes == options[i]
+                        ? Colors.white
+                        : Colors.black87,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
               ),
             ),
           ),
+          if (i < options.length - 1) const SizedBox(width: 8),
+        ],
       ],
     );
   }
 }
 
 class _MinutesSlider extends StatelessWidget {
-  final double value; // minutes
+  final double value;
   final ValueChanged<double>? onChanged;
   final bool disabled;
   final Color accent;
@@ -258,20 +338,36 @@ class _MinutesSlider extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.access_time, size: 18),
-            const SizedBox(width: 8),
-            Text('${value.round()} minutes'),
+            Icon(Icons.access_time_outlined,
+                size: 16, color: Colors.grey.shade600),
+            const SizedBox(width: 6),
+            Text(
+              '${value.round()} minutes',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
-        Slider(
-          value: value.clamp(5, 120),
-          onChanged: disabled ? null : onChanged,
-          min: 5,
-          max: 120,
-          divisions: 23,
-          activeColor: accent,
-          thumbColor: accent,
-          inactiveColor: Colors.white12,
+        SliderTheme(
+          data: SliderThemeData(
+            trackHeight: 4,
+            activeTrackColor: accent,
+            inactiveTrackColor: Colors.grey.shade200,
+            thumbColor: accent,
+            overlayColor: accent.withValues(alpha: 0.15),
+            thumbShape:
+                const RoundSliderThumbShape(enabledThumbRadius: 10),
+          ),
+          child: Slider(
+            value: value.clamp(5, 120),
+            onChanged: disabled ? null : onChanged,
+            min: 5,
+            max: 120,
+            divisions: 23,
+          ),
         ),
       ],
     );
@@ -295,31 +391,47 @@ class _TimerRing extends StatelessWidget {
     final m = remaining.inMinutes % 60;
     final s = remaining.inSeconds % 60;
 
-    return Column(
-      children: [
-        SizedBox(
-          width: 160,
-          height: 160,
-          child: Stack(
-            alignment: Alignment.center,
+    return SizedBox(
+      width: 160,
+      height: 160,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 160,
+            height: 160,
+            child: CircularProgressIndicator(
+              value: progress.isNaN ? 0 : progress,
+              strokeWidth: 10,
+              color: accent,
+              backgroundColor: Colors.grey.shade200,
+              strokeCap: StrokeCap.round,
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 160,
-                height: 160,
-                child: CircularProgressIndicator(
-                  value: progress.isNaN ? 0 : progress,
-                  strokeWidth: 8,
-                  color: accent,
-                  backgroundColor: Colors.white12,
+              Text(
+                '$h:${two(m)}:${two(s)}',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                  letterSpacing: 1,
                 ),
               ),
-              Text('$h:${two(m)}:${two(s)}',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontFeatures: const [], fontWeight: FontWeight.bold)),
+              Text(
+                'remaining',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

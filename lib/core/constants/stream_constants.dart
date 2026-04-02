@@ -25,24 +25,25 @@ class StreamConstants {
   // Station Information
   static const String stationName = 'WBAI';
   static const String stationSlogan = 'Pacifica Radio';
-  static const String stationWebsite = 'https://www.wbai.org';
-  static const String stationLogo = 'https://www.wbai.org/wp-content/uploads/2020/01/wbai-logo.png';
+  static const String stationWebsite = 'https://wbai.org';
+  static const String stationLogo =
+      'https://www.wbai.org/wp-content/uploads/2020/01/wbai-logo.png';
 
   // Menu URLs
-  static const String scheduleUrl = 'https://www.wbai.org/schedule/';
+  static const String scheduleUrl = 'https://wbai.org/schedpage.html';
   static const String playlistUrl = 'https://www.wbai.org/playlist/';
   static const String showArchiveUrl = 'https://www.wbai.org/archive/';
-  static const String donateUrl = 'https://www.wbai.org/donate/';
-  static const String aboutUrl = 'https://www.wbai.org/about/';
+  static const String donateUrl = 'https://docs.pacifica.org/wbai/donate/';
+  static const String aboutUrl = 'https://wbai.org/about.html';
   static const String pacificaUrl =
       'https://pacificanetwork.org/about-pacifica-foundation/pacifica-foundation/';
-  static const String privacyPolicyUrl = 'https://www.wbai.org/privacy/';
+  static const String privacyPolicyUrl =
+      'https://docs.pacifica.org/wbai/wbai-privacy.php';
 
   // Social Media URLs — update with confirmed WBAI handles
-  static const String facebookUrl = 'https://www.facebook.com/wbai/';
+  static const String facebookUrl = 'https://www.facebook.com/WBAIradio/';
   static const String twitterUrl = 'https://x.com/wbai/';
-  static const String instagramUrl = 'https://www.instagram.com/wbai/';
-  static const String youtubeUrl = 'https://www.youtube.com/@wbai/videos/';
+  static const String instagramUrl = 'https://www.instagram.com/wbainyc/';
   static const String emailAddress = 'gm@wbai.org';
 
   // Error Messages
