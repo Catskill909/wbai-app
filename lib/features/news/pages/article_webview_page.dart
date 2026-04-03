@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/di/service_locator.dart';
@@ -85,6 +86,32 @@ class _ArticleWebViewPageState extends State<ArticleWebViewPage> {
             color: Colors.black87,
           ),
         ),
+        actions: [
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.ios_share_rounded),
+              onPressed: () async {
+                try {
+                  final box = context.findRenderObject() as RenderBox?;
+                  final rect = box == null
+                      ? null
+                      : box.localToGlobal(Offset.zero) & box.size;
+                  await Share.share(
+                    '${widget.article.title}\n${widget.article.articleUrl}',
+                    subject: widget.article.title,
+                    sharePositionOrigin: rect,
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Share failed: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+        ],
       ),
       body: Stack(
         children: [

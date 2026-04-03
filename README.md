@@ -34,6 +34,7 @@ A Flutter-based radio streaming application for WBAI 99.5 FM — Pacifica Radio 
     - Homepage articles (6): rich data with images and categories from feed
     - Archive articles (20+): scraped from `moreheadlines.php`, images lazy-fetched per card
   - Article detail: HTML fetched server-side, stripped of old desktop layout, rendered as clean mobile-optimised local HTML with styled title/date/byline header
+  - Share button in article AppBar — tapping opens the native iOS/Android share sheet with article title + URL
   - All in-article links open in system browser (not in-app)
   - 30-minute memory cache; pull-to-refresh bypasses cache
   - Down chevron in AppBar to dismiss back to home
@@ -59,6 +60,7 @@ A Flutter-based radio streaming application for WBAI 99.5 FM — Pacifica Radio 
 - **Networking**: `dio`, `http`
 - **HTML parsing**: `html` (for news feed scraping)
 - **WebView**: `flutter_inappwebview`
+- **Sharing**: `share_plus`
 - **UI**: Material 3, Google Fonts (Oswald + Poppins), light/white theme
 
 High-level flow:
@@ -95,7 +97,7 @@ High-level flow:
   - `bloc/news_cubit.dart` — state management (Initial / Loading / Loaded / Error)
   - `widgets/news_card.dart` — full-bleed image card with lazy cover image loading
   - `pages/news_page.dart` — responsive grid with lazy scroll and dismiss chevron
-  - `pages/article_webview_page.dart` — mobile-rendered article with external link handling
+  - `pages/article_webview_page.dart` — mobile-rendered article with external link handling and native share sheet
 
 ---
 
