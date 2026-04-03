@@ -44,6 +44,7 @@ class StreamConstants {
   static const String facebookUrl = 'https://www.facebook.com/WBAIradio/';
   static const String twitterUrl = 'https://x.com/wbai/';
   static const String instagramUrl = 'https://www.instagram.com/wbainyc/';
+  static const String blueskyUrl = 'https://bsky.app/profile/wbai.org';
   static const String emailAddress = 'gm@wbai.org';
 
   // Error Messages
