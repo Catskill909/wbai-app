@@ -35,7 +35,7 @@ class _DonateWebViewSheetState extends State<DonateWebViewSheet> {
     return SafeArea(
       top: false,
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.white,
         appBar: AppBar(
           automaticallyImplyLeading: false,
           backgroundColor: theme.colorScheme.surface,

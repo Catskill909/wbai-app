@@ -715,7 +715,7 @@ class _HomePageState extends State<HomePage> {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: _isSmallPhone(context) ? 12 : 16,
+                  bottom: 0,
                   child: SafeArea(
                     minimum: const EdgeInsets.only(bottom: 8),
                     child: Center(
@@ -745,7 +745,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           elevation: 6,
-                          fillColor: const Color(0xFF1BB4D8),
+                          fillColor: const Color(0xFF565A60),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24),
                           ),
