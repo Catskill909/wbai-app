@@ -98,11 +98,11 @@ class _ArticleWebViewPageState extends State<ArticleWebViewPage> {
             shouldOverrideUrlLoading: (controller, action) async {
               final url = action.request.url;
               if (url == null) return NavigationActionPolicy.CANCEL;
-              // about:blank is our blank starting page — allow it through
-              if (url.toString() == 'about:blank') {
+              // Allow programmatic loads (about:blank init, loadData base URL, etc.)
+              if (action.navigationType != NavigationType.LINK_ACTIVATED) {
                 return NavigationActionPolicy.ALLOW;
               }
-              // All real links open in the external browser
+              // User-tapped links open in the external browser
               final uri = Uri.parse(url.toString());
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
