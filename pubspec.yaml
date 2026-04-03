@@ -42,6 +42,7 @@ dependencies:
   equatable: ^2.0.7
   # radio_player: ^1.7.1  # REMOVED: Competing audio system conflicts with audio_service
   xml: ^6.5.0
+  html: ^0.15.4
   
   # CRITICAL: Add missing stream management (from working Pacifica app)
   rxdart: ^0.28.0

@@ -7,6 +7,8 @@ import '../services/connectivity_service.dart';
 import '../services/audio_state_manager.dart';
 import '../../presentation/bloc/connectivity_cubit.dart';
 import '../../presentation/bloc/sleep_timer_cubit.dart';
+import '../../features/news/repository/news_repository.dart';
+import '../../features/news/bloc/news_cubit.dart';
 
 // Simple service registry without get_it dependency
 class ServiceRegistry {
@@ -17,7 +19,9 @@ class ServiceRegistry {
   static ConnectivityService? _connectivityService;
   static ConnectivityCubit? _connectivityCubit;
   static SleepTimerCubit? _sleepTimerCubit;
-  
+  static NewsRepository? _newsRepository;
+  static NewsCubit? _newsCubit;
+
   static T get<T>() {
     if (T == WBAIAudioHandler) return _audioHandler as T;
     if (T == MetadataService) return _metadataService as T;
@@ -26,6 +30,8 @@ class ServiceRegistry {
     if (T == ConnectivityService) return _connectivityService as T;
     if (T == ConnectivityCubit) return _connectivityCubit as T;
     if (T == SleepTimerCubit) return _sleepTimerCubit as T;
+    if (T == NewsRepository) return _newsRepository as T;
+    if (T == NewsCubit) return _newsCubit as T;
     throw Exception('Service not registered: $T');
   }
 }
@@ -63,6 +69,10 @@ Future<void> setupServiceLocator() async {
   ServiceRegistry._sleepTimerCubit = SleepTimerCubit(
     ServiceRegistry.get<StreamRepository>()
   );
+
+  // News feature — lazy singleton (fetch only triggered when NewsPage opens)
+  ServiceRegistry._newsRepository = NewsRepository();
+  ServiceRegistry._newsCubit = NewsCubit(ServiceRegistry.get<NewsRepository>());
 }
 
 // Backward compatibility

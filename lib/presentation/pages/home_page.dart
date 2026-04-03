@@ -15,6 +15,7 @@ import '../widgets/sleep_timer_overlay.dart';
 import '../bloc/sleep_timer_cubit.dart';
 import '../../core/di/service_locator.dart' as di;
 import '../../core/services/logger_service.dart';
+import '../../features/news/pages/news_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -696,6 +697,82 @@ class _HomePageState extends State<HomePage> {
                                   : (_isLargeTablet(context) ? 32 : 24),
                             );
                           },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Bottom-center News button
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: _isSmallPhone(context) ? 12 : 16,
+                  child: SafeArea(
+                    minimum: const EdgeInsets.only(bottom: 8),
+                    child: Center(
+                      child: Semantics(
+                        label: 'News',
+                        button: true,
+                        child: RawMaterialButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            PageRouteBuilder(
+                              transitionDuration:
+                                  const Duration(milliseconds: 380),
+                              reverseTransitionDuration:
+                                  const Duration(milliseconds: 300),
+                              pageBuilder: (_, __, ___) => const NewsPage(),
+                              transitionsBuilder:
+                                  (_, animation, __, child) {
+                                final tween = Tween(
+                                  begin: const Offset(0, 1),
+                                  end: Offset.zero,
+                                ).chain(CurveTween(curve: Curves.easeOutCubic));
+                                return SlideTransition(
+                                  position: animation.drive(tween),
+                                  child: child,
+                                );
+                              },
+                            ),
+                          ),
+                          elevation: 6,
+                          fillColor: const Color(0xFF1BB4D8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          constraints: BoxConstraints.tightFor(
+                            width: _isSmallPhone(context)
+                                ? 96
+                                : (_isLargeTablet(context) ? 140 : 112),
+                            height: _isSmallPhone(context)
+                                ? 38
+                                : (_isLargeTablet(context) ? 52 : 44),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.article_outlined,
+                                color: Colors.white,
+                                size: _isSmallPhone(context)
+                                    ? 16
+                                    : (_isLargeTablet(context) ? 24 : 18),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'NEWS',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: _isSmallPhone(context)
+                                      ? 12
+                                      : (_isLargeTablet(context) ? 18 : 14),
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
