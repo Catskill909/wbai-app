@@ -99,8 +99,8 @@ Future<void> main() async {
           '🤖 Android app-close observer registered (detached only)');
     }
 
-    // Remove splash screen
-    FlutterNativeSplash.remove();
+    // Remove splash after minimum display time, but don't block runApp
+    Future.delayed(const Duration(seconds: 2), FlutterNativeSplash.remove);
 
     runApp(const WBAIRadioApp());
   } catch (e, stackTrace) {
@@ -175,3 +175,4 @@ class WBAIRadioApp extends StatelessWidget {
     );
   }
 }
+

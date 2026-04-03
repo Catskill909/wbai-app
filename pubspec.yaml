@@ -78,13 +78,13 @@ flutter_launcher_icons:
 
 # Splash Screen Configuration - DEVICE OPTIMIZED SOLUTION
 flutter_native_splash:
-  color: "#3B2828"
+  color: "#FFFFFF"
   image: assets/icons/splash_icon_fixed.png
   android_gravity: center
-  
+
   android_12:
     image: assets/icons/splash_icon_fixed.png
-    icon_background_color: "#3B2828"
+    icon_background_color: "#FFFFFF"
 
   web: false
   ios: true
