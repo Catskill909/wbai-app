@@ -276,10 +276,32 @@ class _HomePageState extends State<HomePage> {
               children: [
                 // Main content
                 Positioned.fill(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.only(
-                        bottom: 100), // Add padding for bottom buttons
-                    child: Column(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isSmall = _isSmallPhone(context);
+                      final isTab =
+                          MediaQuery.of(context).size.shortestSide > 600;
+                      final sw = constraints.maxWidth;
+                      // Desired image size based on screen width
+                      final widthImg =
+                          sw * (isSmall ? 0.8 : (isTab ? 0.7 : 0.85));
+                      // Fixed height consumed by text + play button below image
+                      final fixedBelow =
+                          isSmall ? 240.0 : (isTab ? 340.0 : 280.0);
+                      final bottomPad = isSmall ? 80.0 : 100.0;
+                      final imgTop = isSmall ? 12.0 : 20.0;
+                      // Available vertical space for the image
+                      final availImg = constraints.maxHeight -
+                          imgTop -
+                          fixedBelow -
+                          bottomPad;
+                      // Scale image down if needed, but never smaller than 80px
+                      final imageSize = availImg > 80.0
+                          ? widthImg.clamp(80.0, availImg)
+                          : widthImg;
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: bottomPad),
+                        child: Column(
                       children: [
                         Container(
                           width: MediaQuery.of(context).size.width,
@@ -298,24 +320,8 @@ class _HomePageState extends State<HomePage> {
                                       }
                                     : null,
                                 child: Container(
-                                  width: MediaQuery.of(context).size.width *
-                                      (_isSmallPhone(context)
-                                          ? 0.8
-                                          : (MediaQuery.of(context)
-                                                      .size
-                                                      .shortestSide >
-                                                  600
-                                              ? 0.7
-                                              : 0.85)),
-                                  height: MediaQuery.of(context).size.width *
-                                      (_isSmallPhone(context)
-                                          ? 0.8
-                                          : (MediaQuery.of(context)
-                                                      .size
-                                                      .shortestSide >
-                                                  600
-                                              ? 0.7
-                                              : 0.85)),
+                                  width: imageSize,
+                                  height: imageSize,
                                   margin: EdgeInsets.only(
                                       top: _isSmallPhone(context) ? 12 : 20),
                                   decoration: BoxDecoration(
@@ -589,6 +595,8 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ],
                     ),
+                  );
+                    },
                   ),
                 ),
 
