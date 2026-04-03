@@ -201,6 +201,7 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				ABE976857AA9D7DE1637116D /* [CP] Embed Pods Frameworks */,
+				FA9B3C12D4E5A678B9C0D1E2 /* Generate Native Asset dSYMs */,
 			);
 			buildRules = (
 			);
@@ -363,6 +364,24 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		FA9B3C12D4E5A678B9C0D1E2 /* Generate Native Asset dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Generate Native Asset dSYMs";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Generate dSYMs for Dart native asset frameworks (e.g. objective_c.framework).\n# These are compiled from source but dsymutil is not run on them, so Apple's\n# upload validator flags the missing dSYM. We generate it here and place it\n# next to the app so Xcode includes it in the archive's dSYMs folder.\nif [ \"${CONFIGURATION}\" != \"Debug\" ]; then\n  FW=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/objective_c.framework/objective_c\"\n  if [ -f \"${FW}\" ]; then\n    dsymutil \"${FW}\" -o \"${BUILT_PRODUCTS_DIR}/objective_c.framework.dSYM\" 2>/dev/null || true\n  fi\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
