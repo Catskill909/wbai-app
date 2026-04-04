@@ -65,19 +65,14 @@ Future<void> main() async {
         androidNotificationClickStartsActivity: true,
       ),
     );
-    LoggerService.info(
-        '🎯 SAMSUNG FIX: AudioService.init() completed with androidStopForegroundOnPause=true');
-
     // === iOS REMOTE COMMAND HANDLER INIT (PRODUCTION - DO NOT MODIFY) ===
     // Set up remote lockscreen command handler for iOS
     if (Platform.isIOS) {
       try {
         final audioHandler = getIt<WBAIAudioHandler>();
         NativeMetadataService.audioHandler = audioHandler;
-        LoggerService.info('🔒 Registered iOS remote command handler');
       } catch (e) {
-        LoggerService.error(
-            '🔒 Failed to register iOS remote command handler: $e');
+        LoggerService.error('Failed to register iOS remote command handler: $e');
       }
     }
     // === END iOS REMOTE COMMAND HANDLER INIT (UNTOUCHED) ===

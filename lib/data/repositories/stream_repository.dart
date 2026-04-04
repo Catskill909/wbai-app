@@ -124,14 +124,6 @@ class StreamRepository {
   StreamMetadata? get currentMetadata => _currentMetadata;
 
   void _initialize() {
-    LoggerService.info(
-        '🎵 StreamRepository: Initializing and starting metadata fetch');
-
-    // REMOVED: Force audio reinitialize - let normal initialization work
-    // Future.delayed(const Duration(milliseconds: 500), () {
-    //   forceAudioReinitialize();
-    // });
-
     // Start fetching metadata immediately
     _metadataService.startFetching();
 
@@ -272,12 +264,9 @@ class StreamRepository {
   /// Manual refresh of metadata
   Future<void> refreshMetadata() async {
     try {
-      final metadata = await _metadataService.fetchMetadataOnce();
-      if (metadata != null) {
-        _currentMetadata = metadata;
-        _metadataController.add(metadata);
-        _updateMediaMetadata(metadata);
-      }
+      // fetchMetadataOnce() emits to metadataStream → subscription listener
+      // handles _currentMetadata, _metadataController, and _updateMediaMetadata.
+      await _metadataService.fetchMetadataOnce();
     } catch (e) {
       LoggerService.streamError('Error refreshing metadata', e);
     }

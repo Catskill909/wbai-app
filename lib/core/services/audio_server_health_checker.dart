@@ -32,8 +32,6 @@ class AudioServerHealthChecker {
       if (_lastHealthCheck != null && _lastHealthResult != null) {
         final timeSinceLastCheck = DateTime.now().difference(_lastHealthCheck!);
         if (timeSinceLastCheck < _cacheTimeout) {
-          LoggerService.info(
-              '🏥 AudioServerHealthChecker: Using cached result: $_lastHealthResult');
           return AudioServerHealthResult(
             isHealthy: _lastHealthResult!,
             errorType: _lastHealthResult!
@@ -45,8 +43,6 @@ class AudioServerHealthChecker {
       }
 
       _configureDio();
-      LoggerService.info(
-          '🏥 AudioServerHealthChecker: Checking server health for: $streamUrl');
 
       // Use GET request instead of HEAD for Icecast/Shoutcast compatibility
       // Icecast servers return 400 for HEAD requests but 200 for GET
@@ -63,8 +59,6 @@ class AudioServerHealthChecker {
       );
 
       final statusCode = response.statusCode ?? 0;
-      LoggerService.info(
-          '🏥 AudioServerHealthChecker: Server responded with status: $statusCode');
 
       // Cache the result
       _lastHealthCheck = DateTime.now();
@@ -163,7 +157,6 @@ class AudioServerHealthChecker {
   static void clearCache() {
     _lastHealthCheck = null;
     _lastHealthResult = null;
-    LoggerService.info('🏥 AudioServerHealthChecker: Cache cleared');
   }
 
   /// Performs a lightweight ping to check basic connectivity

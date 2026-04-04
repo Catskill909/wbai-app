@@ -22,92 +22,55 @@ class NativeMetadataService {
 
   // Register the MethodCallHandler for remote commands from iOS
   static void registerRemoteCommandHandler() {
-    LoggerService.info('🔒 NATIVE: Registering remote command handler');
-
-    // CRITICAL FIX: Start the audio session keep-alive timer
     _startAudioSessionKeepAliveTimer();
 
     _channel.setMethodCallHandler((call) async {
-      LoggerService.info('🔒 REMOTE COMMAND RECEIVED: ${call.method}');
-
       try {
         switch (call.method) {
           case 'remotePlay':
-            LoggerService.info(
-                '🔒 REMOTE COMMAND: Play triggered from iOS lockscreen');
-            // CRITICAL FIX: Route directly through existing StreamRepository singleton
-            // This ensures proper audio handler execution and UI synchronization
             try {
-              final streamRepository = getIt<StreamRepository>();
-              await streamRepository.play(
-                  source: AudioCommandSource.lockscreen);
-              LoggerService.info(
-                  '🔒 REMOTE COMMAND: Play executed through StreamRepository');
+              await getIt<StreamRepository>().play(source: AudioCommandSource.lockscreen);
             } catch (e) {
-              LoggerService.error('🔒 REMOTE COMMAND: Play failed: $e');
+              LoggerService.error('Remote play failed: $e');
               return false;
             }
             return true;
 
           case 'remotePause':
-            LoggerService.info(
-                '🔒 REMOTE COMMAND: Pause triggered from iOS lockscreen');
-            // CRITICAL FIX: Route directly through existing StreamRepository singleton
-            // This ensures proper audio handler execution and UI synchronization
             try {
-              final streamRepository = getIt<StreamRepository>();
-              await streamRepository.pause(
-                  source: AudioCommandSource.lockscreen);
-              LoggerService.info(
-                  '🔒 REMOTE COMMAND: Pause executed through StreamRepository');
+              await getIt<StreamRepository>().pause(source: AudioCommandSource.lockscreen);
             } catch (e) {
-              LoggerService.error('🔒 REMOTE COMMAND: Pause failed: $e');
+              LoggerService.error('Remote pause failed: $e');
               return false;
             }
             return true;
 
           case 'remoteTogglePlayPause':
-            LoggerService.info(
-                '🔒 REMOTE COMMAND: TogglePlayPause triggered from iOS lockscreen');
-            // CRITICAL FIX: Route directly through StreamRepository with proper state checking
             try {
-              final streamRepository = getIt<StreamRepository>();
-              final currentState = streamRepository.currentState;
-
-              if (currentState == StreamState.playing) {
-                await streamRepository.pause(
-                    source: AudioCommandSource.lockscreen);
-                LoggerService.info(
-                    '🔒 REMOTE COMMAND: Toggle -> Pause executed through StreamRepository');
+              final repo = getIt<StreamRepository>();
+              if (repo.currentState == StreamState.playing) {
+                await repo.pause(source: AudioCommandSource.lockscreen);
               } else {
-                await streamRepository.play(
-                    source: AudioCommandSource.lockscreen);
-                LoggerService.info(
-                    '🔒 REMOTE COMMAND: Toggle -> Play executed through StreamRepository');
+                await repo.play(source: AudioCommandSource.lockscreen);
               }
             } catch (e) {
-              LoggerService.error('🔒 REMOTE COMMAND: Toggle failed: $e');
+              LoggerService.error('Remote toggle failed: $e');
               return false;
             }
             return true;
 
           case 'channelTest':
-            // Handle test message from Swift
-            LoggerService.info('🔒 NATIVE: Channel test received from Swift');
             return true;
 
           default:
-            LoggerService.warning(
-                '🔒 REMOTE COMMAND: Unknown method ${call.method}');
             return false;
         }
       } catch (e) {
-        LoggerService.error('🔒 REMOTE COMMAND ERROR: ${e.toString()}');
+        LoggerService.error('Remote command error: ${e.toString()}');
         return false;
       }
     });
 
-    // Send a test message to verify the channel is working
     _testChannel();
   }
 
@@ -118,31 +81,22 @@ class NativeMetadataService {
         Timer.periodic(const Duration(seconds: 30), (timer) {
       _keepAudioSessionAlive();
     });
-    LoggerService.info('🔒 NATIVE: Started audio session keep-alive timer');
   }
 
-  // CRITICAL FIX: Ping iOS to refresh the audio session
   static Future<void> _keepAudioSessionAlive() async {
     if (!Platform.isIOS) return;
-
     try {
-      LoggerService.info('🔒 NATIVE: Sending keepAudioSessionAlive to iOS');
-      final result = await _channel.invokeMethod('keepAudioSessionAlive');
-      LoggerService.info('🔒 NATIVE: Audio session keep-alive result: $result');
+      await _channel.invokeMethod('keepAudioSessionAlive');
     } catch (e) {
-      LoggerService.error('🔒 NATIVE: Audio session keep-alive failed: $e');
+      LoggerService.error('Audio session keep-alive failed: $e');
     }
   }
 
-  // Test the channel connection
   static Future<void> _testChannel() async {
     try {
-      LoggerService.info('🔒 NATIVE: Testing channel connection to Swift');
-      final result =
-          await _channel.invokeMethod('channelTest', {'source': 'flutter'});
-      LoggerService.info('🔒 NATIVE: Channel test result: $result');
+      await _channel.invokeMethod('channelTest', {'source': 'flutter'});
     } catch (e) {
-      LoggerService.error('🔒 NATIVE: Channel test failed: $e');
+      LoggerService.error('Channel test failed: $e');
     }
   }
 
@@ -201,8 +155,6 @@ class NativeMetadataService {
     final isPlaceholderTitle = placeholderTitles.contains(title.trim());
     final isPlaceholderArtist = placeholderArtists.contains(artist.trim());
     if (isPlaceholderTitle || isPlaceholderArtist) {
-      LoggerService.info(
-          '🔒 [BLOCKED] Placeholder metadata blocked from iOS lockscreen update: title="$title", artist="$artist"');
       return false;
     }
     // === END PLACEHOLDER GUARD ===
@@ -222,61 +174,30 @@ class NativeMetadataService {
     if (!forceUpdate && !isSignificantChange && _lastUpdateTime != null) {
       final difference = now.difference(_lastUpdateTime!);
       if (difference < _throttleInterval) {
-        LoggerService.info(
-            '🔒 NATIVE: Throttling metadata update (last update ${difference.inSeconds}s ago)');
-        return true; // Still return true as the update is intentionally throttled
+        return true;
       }
     }
     _lastUpdateTime = now;
 
     try {
-      LoggerService.info('🔒 NATIVE: Updating iOS lockscreen metadata');
-      LoggerService.info(
-          '🔒 NATIVE: Title="$title", Artist="$artist", IsPlaying=$isPlaying');
+      if (title.isEmpty) title = 'WPFW Radio';
+      if (artist.isEmpty) artist = 'Live Stream';
 
-      // Ensure we have valid data
-      if (title.isEmpty) {
-        LoggerService.error('🔒 NATIVE: Empty title provided');
-        title = 'WPFW Radio';
-      }
-
-      if (artist.isEmpty) {
-        LoggerService.error('🔒 NATIVE: Empty artist provided');
-        artist = 'Live Stream';
-      }
-
-      // Create metadata map with playback state
       final Map<String, dynamic> metadata = {
         'title': title,
         'artist': artist,
-        'isPlaying': isPlaying, // CRITICAL: Pass playback state to native code
-        // Add forceUpdate flag so Swift knows if it should bypass its cache check
-        // Although Swift's debounce might make this less critical
+        'isPlaying': isPlaying,
         'forceUpdate': forceUpdate,
       };
 
-      // Add artwork if available
       if (artworkUrl != null && artworkUrl.isNotEmpty) {
         metadata['artworkUrl'] = artworkUrl;
-        LoggerService.info(
-            '🔒 NATIVE: Including artwork URL in metadata: $artworkUrl');
-      } else {
-        LoggerService.info(
-            '🔒 NATIVE: No artwork URL provided (artworkUrl: $artworkUrl)');
       }
 
-      // Log the complete metadata being sent
-      LoggerService.info(
-          '🔒 NATIVE: Sending complete metadata to iOS: $metadata');
-
-      // Send to native code
       await _channel.invokeMethod('updateMetadata', metadata);
-      LoggerService.info(
-          '🔒 NATIVE: Lockscreen metadata updated successfully via invokeMethod');
-
       return true;
     } catch (e) {
-      LoggerService.error('🔒 NATIVE: Failed to update lockscreen: $e');
+      LoggerService.error('Failed to update lockscreen: $e');
       return false;
     }
   }
@@ -303,9 +224,7 @@ class NativeMetadataService {
 
   /// Dispose method to clean up resources if needed
   void dispose() {
-    // CRITICAL FIX: Cancel keep-alive timer
     _audioSessionKeepAliveTimer?.cancel();
     _audioSessionKeepAliveTimer = null;
-    LoggerService.info('🔒 NATIVE: NativeMetadataService disposed');
   }
 }

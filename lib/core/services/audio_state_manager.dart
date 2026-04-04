@@ -494,8 +494,8 @@ class AudioStateManager extends ChangeNotifier {
   void _logStateDivergence(StreamState streamState) {
     final expectedGlobalState = _mapStreamStateToGlobal(streamState);
     if (_currentState != expectedGlobalState) {
-      LoggerService.warning(
-        '🔄 STATE DIVERGENCE: AudioStateManager=${_currentState.name}, '
+      LoggerService.debug(
+        'STATE DIVERGENCE: AudioStateManager=${_currentState.name}, '
         'StreamRepository=${streamState.name} (expected: ${expectedGlobalState.name})'
       );
     }

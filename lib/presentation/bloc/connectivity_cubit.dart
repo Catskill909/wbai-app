@@ -52,7 +52,6 @@ class ConnectivityCubit extends Cubit<ConnectivityState> {
         super(ConnectivityState.initial());
 
   void initialize() {
-    LoggerService.info('🌐 ConnectivityCubit: Initializing connectivity monitoring');
     _sub?.cancel();
     _sub = _service.connectivityStream().listen((isOnline) async {
       final wasOnline = state.isOnline;
@@ -67,20 +66,11 @@ class ConnectivityCubit extends Cubit<ConnectivityState> {
       
       // Log network state changes for debugging
       if (!wasFirstRun && wasOnline != isOnline) {
-        if (isOnline) {
-          LoggerService.info('🌐 ConnectivityCubit: Network recovered - modal will be removed, no audio changes');
-          // USER'S SOLUTION: Network recovery only removes modal, doesn't touch audio
-        } else {
-          LoggerService.info('🌐 ConnectivityCubit: Network lost - resetting audio to initial state immediately');
-          
-          // USER'S SOLUTION: Reset audio to initial state IMMEDIATELY when network is lost
-          if (_streamRepository != null) {
-            try {
-              await _streamRepository.pause(source: AudioCommandSource.networkLoss);
-              LoggerService.info('🌐 ConnectivityCubit: Audio reset to initial state completed');
-            } catch (e) {
-              LoggerService.streamError('Error resetting audio on network loss', e);
-            }
+        if (!isOnline && _streamRepository != null) {
+          try {
+            await _streamRepository.pause(source: AudioCommandSource.networkLoss);
+          } catch (e) {
+            LoggerService.streamError('Error resetting audio on network loss', e);
           }
         }
       }
