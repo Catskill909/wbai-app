@@ -69,7 +69,6 @@ class MetadataService {
   }
 
   void _updateMetadata(StreamMetadata metadata) {
-    LoggerService.info('Metadata: Show="${metadata.current.showName}"');
     _lastMetadata = metadata;
     _metadataController.add(metadata);
   }

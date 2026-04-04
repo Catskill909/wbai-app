@@ -100,10 +100,6 @@ class AudioStateManager extends ChangeNotifier {
 
   /// Queue an audio command to prevent race conditions
   Future<void> enqueueCommand(AudioCommand command) async {
-    // PHASE 2: Log that commands are now routed through StreamRepository
-    LoggerService.info('🎛️ PHASE 2: AudioStateManager.enqueueCommand() - now routes through StreamRepository');
-    LoggerService.info('🎛️ AudioStateManager: Enqueuing ${command.type} from ${command.source}');
-    
     // Special handling for urgent commands
     if (command.type == AudioCommandType.reset) {
       _commandQueue.clear();
@@ -139,8 +135,6 @@ class AudioStateManager extends ChangeNotifier {
   /// Execute a single audio command
   Future<void> _executeCommand(AudioCommand command) async {
     try {
-      LoggerService.info('🎛️ AudioStateManager: Executing ${command.type} from ${command.source}');
-      
       _lastCommandSource = command.source;
       _lastStateChange = DateTime.now();
       
@@ -189,109 +183,61 @@ class AudioStateManager extends ChangeNotifier {
     }
 
     if (_currentState == GlobalAudioState.playing) {
-      LoggerService.info('🎛️ AudioStateManager: Already playing, ignoring duplicate play command');
       return;
     }
 
-    // PHASE 2: Route command through StreamRepository (actual execution)
+    _updateState(GlobalAudioState.connecting);
+
+    _bufferingTimeoutTimer?.cancel();
+    _bufferingTimeoutTimer = Timer(_bufferingTimeout, () {
+      LoggerService.audioError('Buffering timeout', null);
+      _handleBufferingTimeout();
+    });
+
     if (_streamRepository != null) {
-      LoggerService.info('🎛️ PHASE 2: Routing play command through StreamRepository');
-      _updateState(GlobalAudioState.connecting);
-      
-      // Start buffering timeout
-      _bufferingTimeoutTimer?.cancel();
-      _bufferingTimeoutTimer = Timer(_bufferingTimeout, () {
-        LoggerService.audioError('Buffering timeout', null);
-        _handleBufferingTimeout();
-      });
-      
-      // Actually execute the command through StreamRepository
       await _streamRepository!.play(source: command.source);
-      LoggerService.info('🎛️ PHASE 2: Play command executed through StreamRepository');
     } else {
-      // Fallback to Phase 1 behavior (for safety)
-      LoggerService.warning('🎛️ PHASE 2: StreamRepository not available, using fallback behavior');
-      _updateState(GlobalAudioState.connecting);
-      
-      // Start buffering timeout
-      _bufferingTimeoutTimer?.cancel();
-      _bufferingTimeoutTimer = Timer(_bufferingTimeout, () {
-        LoggerService.audioError('Buffering timeout', null);
-        _handleBufferingTimeout();
-      });
-      
-      LoggerService.info('🎛️ AudioStateManager: Play command processed, state updated to connecting');
+      LoggerService.warning('AudioStateManager: StreamRepository not available for play');
     }
   }
 
   /// Execute pause command
   Future<void> _executePauseCommand(AudioCommand command) async {
     if (_currentState == GlobalAudioState.paused || _currentState == GlobalAudioState.idle) {
-      LoggerService.info('🎛️ AudioStateManager: Already paused/idle, ignoring duplicate pause command');
       return;
     }
 
-    // PHASE 2: Route command through StreamRepository (actual execution)
+    _updateState(GlobalAudioState.paused);
+    _bufferingTimeoutTimer?.cancel();
+
     if (_streamRepository != null) {
-      LoggerService.info('🎛️ PHASE 2: Routing pause command through StreamRepository');
-      _updateState(GlobalAudioState.paused);
-      _bufferingTimeoutTimer?.cancel();
-      
-      // Actually execute the command through StreamRepository
       await _streamRepository!.pause(source: command.source);
-      LoggerService.info('🎛️ PHASE 2: Pause command executed through StreamRepository');
     } else {
-      // Fallback to Phase 1 behavior (for safety)
-      LoggerService.warning('🎛️ PHASE 2: StreamRepository not available, using fallback behavior');
-      _updateState(GlobalAudioState.paused);
-      _bufferingTimeoutTimer?.cancel();
-      
-      LoggerService.info('🎛️ AudioStateManager: Pause command processed, state updated to paused');
+      LoggerService.warning('AudioStateManager: StreamRepository not available for pause');
     }
   }
 
   /// Execute stop command
   Future<void> _executeStopCommand(AudioCommand command) async {
-    // PHASE 2: Route command through StreamRepository (actual execution)
+    _updateState(GlobalAudioState.idle);
+    _bufferingTimeoutTimer?.cancel();
+    _errorMessage = null;
+
     if (_streamRepository != null) {
-      LoggerService.info('🎛️ PHASE 2: Routing stop command through StreamRepository');
-      _updateState(GlobalAudioState.idle);
-      _bufferingTimeoutTimer?.cancel();
-      _errorMessage = null;
-      
-      // Actually execute the command through StreamRepository
       await _streamRepository!.stop();
-      LoggerService.info('🎛️ PHASE 2: Stop command executed through StreamRepository');
     } else {
-      // Fallback to Phase 1 behavior (for safety)
-      LoggerService.warning('🎛️ PHASE 2: StreamRepository not available, using fallback behavior');
-      _updateState(GlobalAudioState.idle);
-      _bufferingTimeoutTimer?.cancel();
-      _errorMessage = null;
+      LoggerService.warning('AudioStateManager: StreamRepository not available for stop');
     }
   }
 
   /// Execute retry command
   Future<void> _executeRetryCommand(AudioCommand command) async {
-    LoggerService.info('🎛️ AudioStateManager: Executing retry command');
-    
-    // Clear error state
     _errorMessage = null;
-    
-    // PHASE 2: Route command through StreamRepository (actual execution)
+
+    await _executeResetCommand(command);
     if (_streamRepository != null) {
-      LoggerService.info('🎛️ PHASE 2: Routing retry command through StreamRepository');
-      
-      // Reset and then play through StreamRepository
-      await _executeResetCommand(command);
       await _streamRepository!.play(source: AudioCommandSource.errorRecovery);
-      LoggerService.info('🎛️ PHASE 2: Retry command executed through StreamRepository');
     } else {
-      // Fallback to Phase 1 behavior (for safety)
-      LoggerService.warning('🎛️ PHASE 2: StreamRepository not available, using fallback behavior');
-      
-      // Reset and then play
-      await _executeResetCommand(command);
       await _executePlayCommand(AudioCommand(
         type: AudioCommandType.play,
         source: AudioCommandSource.errorRecovery,
@@ -301,38 +247,21 @@ class AudioStateManager extends ChangeNotifier {
 
   /// Execute reset command - nuclear option for stuck states
   Future<void> _executeResetCommand(AudioCommand command) async {
-    LoggerService.info('🎛️ AudioStateManager: Executing nuclear reset from ${command.source}');
-    
     _updateState(GlobalAudioState.resetting);
-    
-    // Cancel all timers
+
     _commandTimeoutTimer?.cancel();
     _bufferingTimeoutTimer?.cancel();
-    
-    // Clear error state
+
     _errorMessage = null;
     _wasAttemptingPlayWhenOffline = false;
-    
-    // For network loss resets, we need to ensure complete audio pipeline reset
-    if (command.source == AudioCommandSource.networkLoss) {
-      LoggerService.info('🎛️ AudioStateManager: Network loss reset - triggering complete audio pipeline reset');
-      
-      // PHASE 2: Route reset through StreamRepository (actual execution)
-      if (_streamRepository != null) {
-        LoggerService.info('🎛️ PHASE 2: Routing network loss reset through StreamRepository');
-        await _streamRepository!.stopAndColdReset();
-        LoggerService.info('🎛️ PHASE 2: Network loss reset executed through StreamRepository');
-      } else {
-        // Fallback to Phase 1 behavior (for safety)
-        LoggerService.warning('🎛️ PHASE 2: StreamRepository not available for network loss reset');
-        // The StreamRepository.stopAndColdReset() will be called by the repository
-        // when it receives the reset command through the audio handler
-      }
+
+    if (command.source == AudioCommandSource.networkLoss &&
+        _streamRepository != null) {
+      await _streamRepository!.stopAndColdReset();
     }
-    
-    // Brief delay to ensure all systems reset
+
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     _updateState(GlobalAudioState.idle);
   }
 
@@ -572,18 +501,12 @@ class AudioStateManager extends ChangeNotifier {
     }
   }
 
-  /// Start listening to StreamRepository state changes (Phase 1 safety)
+  /// Start listening to StreamRepository state changes
   void startListeningToStreamRepository(StreamRepository streamRepository) {
-    LoggerService.info('🔄 PHASE 1: AudioStateManager starting to listen to StreamRepository');
-    
-    // PHASE 2: Store StreamRepository reference for command redirection
     _streamRepository = streamRepository;
-    LoggerService.info('🔄 PHASE 2: StreamRepository injected into AudioStateManager');
-    
     _streamRepositorySubscription?.cancel();
     _streamRepositorySubscription = streamRepository.stateStream.listen((streamState) {
       _logStateDivergence(streamState);
-      // Phase 2: Commands now route through StreamRepository for actual execution
     });
   }
 
@@ -591,7 +514,6 @@ class AudioStateManager extends ChangeNotifier {
   void stopListeningToStreamRepository() {
     _streamRepositorySubscription?.cancel();
     _streamRepositorySubscription = null;
-    LoggerService.info('🔄 AudioStateManager stopped listening to StreamRepository');
   }
 
 

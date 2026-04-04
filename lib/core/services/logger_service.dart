@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
 class LoggerService {
@@ -7,10 +8,9 @@ class LoggerService {
   static void init() {
     if (_initialized) return;
 
-    Logger.root.level = Level.INFO;
+    // Only show INFO+ in debug builds; suppress to WARNING in release/profile.
+    Logger.root.level = kDebugMode ? Level.INFO : Level.WARNING;
     Logger.root.onRecord.listen((record) {
-      // In development, print to console
-      // In production, this could be integrated with a crash reporting service
       final message = '${record.level.name}: ${record.time}: '
           '${record.loggerName}: ${record.message}';
 
@@ -19,8 +19,6 @@ class LoggerService {
         print('  error: ${record.error}');
       }
 
-      // Add your preferred logging destination here
-      // For now, we'll use print in a more structured way
       // ignore: avoid_print
       print(message);
     });

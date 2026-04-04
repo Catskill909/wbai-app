@@ -49,17 +49,10 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     // DELAY: Don't show generic player immediately - wait for real metadata
     // mediaItem.add(_currentMediaItem); // ← REMOVED: Causes generic player flash
-    LoggerService.info(
-        '🔍 INITIAL LOAD FIX: _setInitialMediaItem() called but NOT showing generic player');
-    LoggerService.info(
-        '🎯 INITIAL LOAD FIX: Waiting for real metadata before showing player');
   }
 
   static Future<WBAIAudioHandler> create() async {
     final player = AudioPlayer();
-
-    LoggerService.info(
-        '🎵 Initializing audio handler (single source of truth)');
 
     return WBAIAudioHandler._(
       player,
@@ -69,20 +62,14 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   Future<void> _init() async {
     try {
-      LoggerService.info(
-          '🎵 AudioHandler: Initializing with EXPERT M3U parsing');
-
       // Configure audio session category - do NOT activate until user presses play
       // Activating at startup causes iOS paramErr (-50) before foreground audio is allowed
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
-      LoggerService.info(
-          '🎯 SAMSUNG FIX: Audio session configured for lockscreen controls');
 
       // EXPERT SOLUTION: Parse M3U playlist to get direct stream URL
       final directStreamUrl = await _resolveStreamUrl(_streamUrl);
-      LoggerService.info(
-          '🎵 AudioHandler: Resolved stream URL: $directStreamUrl');
+      LoggerService.info('AudioHandler: Resolved stream URL: $directStreamUrl');
 
       // Configure audio source with direct stream URL (industry standard)
       await _player.setAudioSource(
@@ -111,16 +98,9 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _player.playbackEventStream.listen(_broadcastState);
       _player.playerStateStream.listen(_handlePlayerState);
 
-      // ANDROID: deep diagnostics - observe handler streams
       if (Platform.isAndroid) {
-        mediaItem.listen((item) {
-          final t = item?.title ?? '';
-          final a = item?.artist ?? '';
-          LoggerService.info(
-              '🤖 ANDROID DIAG: mediaItem changed -> title="$t" artist="$a"');
-        });
         playbackState.listen((state) {
-          // throttle
+          // throttle diagnostic dumps
           final now = DateTime.now();
           if (_lastAndroidDiag == null ||
               now.difference(_lastAndroidDiag!) > const Duration(seconds: 2)) {
@@ -258,23 +238,14 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> play() async {
     try {
-      LoggerService.info('🎯 ONE TRUTH: Play button pressed - starting flow');
-
       // CRITICAL: Request audio focus before playing (Samsung requirement)
       final session = await AudioSession.instance;
       final success = await session.setActive(true);
       if (!success) {
-        LoggerService.warning(
-            '🎯 SAMSUNG FIX: Failed to gain audio focus - lockscreen controls may not work, but continuing playback');
-      } else {
-        LoggerService.info(
-            '🎯 SAMSUNG FIX: Audio focus gained successfully - lockscreen controls should now work');
+        LoggerService.warning('AudioHandler: Failed to gain audio focus');
       }
 
       // CACHE FIX: ALWAYS set fresh AudioSource - never trust existing one
-      // This ensures every play button press behaves like app startup (fresh stream)
-      LoggerService.info(
-          '🎯 CACHE FIX: ALWAYS setting fresh AudioSource (no cache check)');
       final directStreamUrl = await _resolveStreamUrl(_streamUrl);
       await _player.setAudioSource(
         AudioSource.uri(
@@ -282,41 +253,21 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           tag: _currentMediaItem,
         ),
       );
-      LoggerService.info(
-          '🎯 CACHE FIX: Fresh AudioSource set - guaranteed no cached audio');
 
-      LoggerService.info(
-          '🎯 ONE TRUTH: Calling _player.play() - event listener will trigger _broadcastState');
       await _player.play();
 
-      // REMOVED: Manual _broadcastState call - this was causing oscillation
-      // The event listener will handle state broadcasting automatically
-
-      // CRITICAL: Use our dummy MediaItem to update playback state only
-      // Our Swift implementation will handle the lockscreen metadata
       _updateMediaSession(_player.playing, _currentMediaItem!);
 
-      // CRITICAL: Update Samsung MediaSession playback state
-      // This is the native Android MediaSession that Samsung J7 requires
       await SamsungMediaSessionService.updatePlaybackState(true);
 
-      // DELAY FIX: Wait for current metadata before showing Samsung notification
       if (_currentMetadata != null) {
-        LoggerService.info(
-            '🔍 METADATA DELAY FIX: Using existing metadata for Samsung notification');
         await SamsungMediaSessionService.updateMetadata(
           _currentMetadata!.currentSong,
           _currentMetadata!.artist,
         );
-      } else {
-        LoggerService.info(
-            '🔍 METADATA DELAY FIX: No metadata available yet - Samsung will show static until metadata arrives');
       }
 
-      // STANDARD BEHAVIOR: Show notification only when PLAYING starts
       await SamsungMediaSessionService.showNotification();
-      LoggerService.info(
-          '🔍 SAMSUNG DEBUG: Notification shown because PLAY was pressed (STANDARD)');
 
       if (Platform.isAndroid) {
         _debugDumpAndroidState('play:afterUpdateSession');
@@ -331,29 +282,15 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> pause() async {
     try {
-      LoggerService.info('🎵 AudioHandler: Pause requested');
       await _player.pause();
 
-      // REMOVED: Manual _broadcastState call - this was causing oscillation
-      // The event listener will handle state broadcasting automatically
-
-      // CRITICAL: Release audio focus when pausing (Samsung requirement)
       final session = await AudioSession.instance;
       await session.setActive(false);
-      LoggerService.info('🎯 SAMSUNG FIX: Audio focus released on pause');
 
-      // CRITICAL: Use our dummy MediaItem to update playback state only
-      // Our Swift implementation will handle the lockscreen metadata
       _updateMediaSession(_player.playing, _currentMediaItem!);
 
-      // CRITICAL: Update Samsung MediaSession playback state
-      // This is the native Android MediaSession that Samsung J7 requires
       await SamsungMediaSessionService.updatePlaybackState(false);
-
-      // STANDARD BEHAVIOR: Hide notification when PAUSED (like other apps)
       await SamsungMediaSessionService.hideNotification();
-      LoggerService.info(
-          '🔍 SAMSUNG DEBUG: Notification hidden because PAUSE was pressed (STANDARD)');
     } catch (e) {
       LoggerService.audioError('Error pausing stream', e);
       _handleError(e);
@@ -363,37 +300,20 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> stop() async {
     try {
-      LoggerService.info(
-          '🎵 AudioHandler: Stop requested - REMOVING player from notification tray');
-
-      // CRITICAL: Complete reset like app startup - clear AudioSource
       await _player.stop();
-      LoggerService.info(
-          '🎯 REAL FIX: AudioPlayer.stop() called - clears all cached audio data');
 
-      // Release audio focus completely
       final session = await AudioSession.instance;
       await session.setActive(false);
-      LoggerService.info('🎯 SAMSUNG FIX: Audio focus released on stop');
 
-      // Hide Samsung notification completely
       await SamsungMediaSessionService.hideNotification();
-      LoggerService.info(
-          '🔍 SAMSUNG DEBUG: Notification hidden because STOP was pressed');
 
-      // Set playback state to idle and clear MediaItem to remove from tray
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.idle,
         playing: false,
       ));
 
-      // Clear MediaItem to remove player from notification tray completely
       mediaItem.add(null);
-      LoggerService.info(
-          '🎯 STOP: Player removed from notification tray - MediaItem set to null');
 
-      // CRITICAL: Use proper AudioHandler approach - set to stopped state
-      // This signals the AudioService to remove the foreground notification
       playbackState.add(PlaybackState(
         controls: [],
         systemActions: const {},
@@ -403,8 +323,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         bufferedPosition: Duration.zero,
         speed: 0.0,
       ));
-      LoggerService.info(
-          '🎯 STOP: Set playback state to idle with no controls to remove service');
     } catch (e) {
       LoggerService.audioError('Error stopping and removing player', e);
       _handleError(e);
@@ -428,8 +346,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Updates the media session state without updating the MediaItem
   /// This ensures just_audio_background won't control the lockscreen
   Future<void> _updateMediaSession(bool playing, MediaItem mediaItem) async {
-    LoggerService.info('🎵 AudioHandler: Updating media session state only');
-
     final controls = [
       MediaControl.stop,
       playing ? MediaControl.pause : MediaControl.play,
@@ -456,21 +372,14 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // This prevents just_audio_background from controlling the lockscreen
     // Our Swift implementation is the single source of truth for metadata
     // this.mediaItem.add(mediaItem); // Intentionally commented out
-
-    LoggerService.info(
-        '🎵 AudioHandler: Updated playback state only, not metadata');
   }
 
   /// Updates the current MediaItem with real metadata (SINGLE SOURCE OF TRUTH)
   Future<void> _updateMediaItem(String title, String artist) async {
-    LoggerService.info(
-        '🎵 AudioHandler: Received metadata update: "$title" by "$artist"');
-
     // Skip empty or placeholder updates
     if (title.isEmpty ||
         title == 'Loading stream...' ||
         title == 'Connecting...') {
-      LoggerService.info('🎵 AudioHandler: Skipping empty/placeholder update');
       return;
     }
 
@@ -481,32 +390,15 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       title: title,
       artist: artist,
       duration: const Duration(hours: 24),
-      // REMOVED: Broken placeholder artwork that was causing 404 errors and overriding real artwork
-      // artUri: Uri.parse("https://www.wbai.org/playlist/images/wbai_logo.png"),
     );
 
     // Let _broadcastState handle the mediaItem.add() call (SINGLE SOURCE OF TRUTH)
-    LoggerService.info(
-        '🔍 METADATA BATTLE: _updateMediaItem() called with REAL metadata: "$title" by "$artist"');
-    LoggerService.info(
-        '🎯 ONE TRUTH: Updated _currentMediaItem with real metadata: "$title" by "$artist"');
-    LoggerService.info(
-        '🎯 ONE TRUTH: Next _broadcastState call will use this updated MediaItem');
-
-    // CRITICAL: Update Samsung MediaSession with real metadata
-    LoggerService.info(
-        '🔍 SAMSUNG DEBUG: Calling SamsungMediaSessionService.updateMetadata("$title", "$artist")');
     await SamsungMediaSessionService.updateMetadata(title, artist);
-    LoggerService.info(
-        '🔍 SAMSUNG DEBUG: SamsungMediaSessionService.updateMetadata() completed');
   }
 
   /// Updates only the playback state without changing metadata
   /// This prevents iOS from caching placeholder values
   Future<void> _updatePlaybackStateOnly() async {
-    LoggerService.info('🎵 AudioHandler: Updating playback state only');
-
-    // Force a playback state update
     playbackState.add(
       playbackState.value.copyWith(
         playing: _player.playing,
@@ -515,9 +407,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         speed: _player.speed,
       ),
     );
-
-    LoggerService.info(
-        '🎵 AudioHandler: Playback state updated, using Swift for lockscreen metadata');
   }
 
   /// Public: Reset the audio pipeline to a cold-start idle state
@@ -641,8 +530,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// Updates metadata from stream metadata
   void updateMetadata(StreamMetadata metadata) {
-    LoggerService.info(
-        '🎵 AudioHandler: Updating with LIVE metadata: ${metadata.currentSong}');
     _currentMetadata = metadata;
     _updateMediaItem(
       metadata.currentSong,
@@ -652,22 +539,8 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> updateMediaItem(MediaItem mediaItem) async {
-    LoggerService.info(
-        '✅ STANDARD FLUTTER: updateMediaItem() called with title="${mediaItem.title}", artist="${mediaItem.artist}"');
-
-    // STANDARD APPROACH: Let audio_service handle lockscreen on ALL platforms!
-    // This is how EVERY Flutter audio app works - audio_service handles:
-    // - iOS: MPNowPlayingInfoCenter + artwork download
-    // - Android: MediaSession + notification
-    // - Lifecycle events, caching, everything!
-
     _currentMediaItem = mediaItem;
-    this.mediaItem.add(mediaItem); // ✅ LET THE FRAMEWORK DO ITS JOB!
-
-    LoggerService.info(
-        '✅ STANDARD FLUTTER: MediaItem set - audio_service will handle lockscreen/notification');
-    LoggerService.info(
-        '✅ Artwork URL: ${mediaItem.artUri?.toString() ?? "none"}');
+    this.mediaItem.add(mediaItem);
   }
 
   // ANDROID: deep diagnostics helper - does not change behavior

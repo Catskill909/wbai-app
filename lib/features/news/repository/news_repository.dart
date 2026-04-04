@@ -15,9 +15,9 @@ class NewsRepository {
   // ─── Configuration ────────────────────────────────────────────────────────
   // To adapt for another station, update these constants only.
   static const String _homepageUrl = 'https://wbai.org/';
-  static const String _archiveUrl = 'https://wbai.org/moreheadlines.php';
+  static const String _archiveUrl = 'https://wbai.org/news/';
   static const String _baseUrl = 'https://wbai.org';
-  static const int _archiveLimit = 20; // extra articles beyond the homepage 6
+  static const int _archiveLimit = 30; // extra articles beyond the homepage tiles
 
   static const Duration _cacheDuration = Duration(minutes: 30);
 
@@ -131,7 +131,7 @@ class NewsRepository {
     }
   }
 
-  // ─── Archive scrape (title + date only, no images) ───────────────────────
+  // ─── Archive scrape (/news/ page — same news-tile markup as homepage) ───────
 
   Future<List<NewsArticle>> _fetchArchive() async {
     try {
@@ -141,34 +141,40 @@ class NewsRepository {
 
       if (response.statusCode != 200) return [];
 
-      final dateRegex = RegExp(r'\((\d{2}/\d{2}/\d{4})\)');
+      final imageRegex = RegExp(r'''url\(['"]?(.*?)['"]?\)''');
       final doc = html_parser.parse(response.body);
       final articles = <NewsArticle>[];
 
-      for (final el in doc.querySelectorAll('span.headline')) {
-        final anchor = el.querySelector('a');
-        if (anchor == null) continue;
-
-        final title = anchor.text.trim();
+      for (final el in doc.querySelectorAll('.news-tile')) {
+        final title =
+            el.querySelector('.news-tile__title')?.text.trim() ?? '';
         if (title.isEmpty) continue;
 
-        final href = anchor.attributes['href'] ?? '';
+        final href = el.attributes['href'] ?? '';
         final articleUrl =
             href.startsWith('http') ? href : '$_baseUrl/$href';
 
-        // Date sits as plain text immediately after the </span> in the parent <p>
-        final parentText = el.parent?.text ?? '';
-        final dateMatch = dateRegex.firstMatch(parentText);
-        final date = dateMatch != null
-            ? _formatArchiveDate(dateMatch.group(1)!)
-            : '';
+        final styleAttr = el.attributes['style'] ?? '';
+        final imageMatch = imageRegex.firstMatch(styleAttr);
+        String? imageUrl;
+        if (imageMatch != null) {
+          final path = Uri.decodeFull(imageMatch.group(1)!);
+          imageUrl = path.startsWith('http') ? path : '$_baseUrl$path';
+        }
 
         articles.add(NewsArticle(
           title: title,
-          date: date,
-          author: '',
-          category: '',
-          imageUrl: null,
+          date: el.querySelector('.news-tile__date')?.text.trim() ?? '',
+          author: el
+                  .querySelector('.news-tile__author')
+                  ?.text
+                  .trim()
+                  .replaceFirst(
+                      RegExp(r'^by\s+', caseSensitive: false), '') ??
+              '',
+          category:
+              el.querySelector('.news-tile__category')?.text.trim() ?? '',
+          imageUrl: imageUrl,
           articleUrl: articleUrl,
         ));
       }
@@ -187,22 +193,7 @@ class NewsRepository {
     return match?.group(1) ?? url;
   }
 
-  /// Converts "03/31/2026" → "March 31, 2026"
-  String _formatArchiveDate(String raw) {
-    final parts = raw.split('/');
-    if (parts.length != 3) return raw;
-    const months = [
-      '', 'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ];
-    final month = int.tryParse(parts[0]) ?? 0;
-    final day = int.tryParse(parts[1]) ?? 0;
-    final year = parts[2];
-    if (month < 1 || month > 12) return raw;
-    return '${months[month]} $day, $year';
-  }
-
-  // ─── Article content fetcher ─────────────────────────────────────────────
+// ─── Article content fetcher ─────────────────────────────────────────────
   // Fetches an article page, extracts the body content, and returns a
   // self-contained mobile-friendly HTML string for rendering via loadData().
   // Pass the NewsArticle so we can build a properly styled header.

@@ -138,8 +138,6 @@ class StreamRepository {
     // Listen for metadata updates
     _metadataSubscription = _metadataService.metadataStream.listen(
       (metadata) {
-        LoggerService.info(
-            '🎵 StreamRepository: RECEIVED METADATA: Show=${metadata.current.showName}, Host=${metadata.current.host}');
         _currentMetadata = metadata;
         _metadataController.add(metadata);
         _updateMediaMetadata(metadata);
@@ -178,14 +176,7 @@ class StreamRepository {
             break;
         }
 
-        // REMOVED: Direct lockscreen update on every playback state change
-        // This was causing excessive updates (multiple times per second)
-        // Now we only update metadata when the actual metadata changes
-        // The playback state is still tracked and passed to the native layer
-        if (Platform.isIOS && _currentMetadata != null) {
-          LoggerService.info('🎵 Playback state changed: playing=$isPlaying');
-          // We don't call _updateLockscreenOnPlaybackChange here anymore
-        }
+        // Playback state tracked; metadata is updated separately in _updateMediaMetadata.
       },
     );
 
@@ -199,41 +190,21 @@ class StreamRepository {
 
   Future<void> play({AudioCommandSource? source}) async {
     try {
-      LoggerService.info(
-          '🎵 StreamRepository: Play requested from ${source ?? 'UI'} - checking server health first');
-
       // Pre-flight server health check
       try {
         final healthResult = await AudioServerHealthChecker.checkServerHealth(
             StreamConstants.streamUrl);
 
         if (!healthResult.isHealthy) {
-          LoggerService.info(
-              '🎵 StreamRepository: Server health check failed: ${healthResult.errorType}');
           await _handleServerError(healthResult);
           return;
         }
-
-        LoggerService.info(
-            '🎵 StreamRepository: Server health check passed - proceeding with playback');
-      } on NetworkConnectivityException catch (e) {
-        LoggerService.info(
-            '🎵 StreamRepository: Network connectivity issue during health check: $e');
-        // Let the existing network handling take care of this
-        // Don't show server error modal for network issues
+      } on NetworkConnectivityException {
         _updateState(StreamState.error);
         return;
       }
 
       _updateState(StreamState.connecting);
-
-      // CRITICAL FIX: Handle lockscreen-initiated commands
-      if (source == AudioCommandSource.lockscreen) {
-        LoggerService.info(
-            '🎵 StreamRepository: Lockscreen-initiated playback detected');
-        // UI will be updated through normal playback state listener
-      }
-
       await _audioHandler.play();
       // State will be updated by the playback state listener
     } catch (e) {
@@ -257,15 +228,8 @@ class StreamRepository {
 
   Future<void> pause({AudioCommandSource? source}) async {
     try {
-      LoggerService.info(
-          '🎵 StreamRepository: Pause requested - SPOTIFY SIMPLE APPROACH');
-
-      // SPOTIFY SIMPLE: Just stop the audio handler - that's it
       await _audioHandler.stop();
       _updateState(StreamState.initial);
-
-      LoggerService.info(
-          '🎵 StreamRepository: Pause completed - simple stop, ready for fresh start');
     } catch (e) {
       LoggerService.streamError('Error pausing stream', e);
       _updateState(StreamState.error);
@@ -307,19 +271,12 @@ class StreamRepository {
 
   /// Manual refresh of metadata
   Future<void> refreshMetadata() async {
-    LoggerService.info(
-        '🎵 StreamRepository: MANUAL REFRESH of metadata - Explicitly fetching');
     try {
       final metadata = await _metadataService.fetchMetadataOnce();
       if (metadata != null) {
-        LoggerService.info(
-            '🎵 METADATA FOUND! Show=${metadata.current.showName}, Host=${metadata.current.host}');
         _currentMetadata = metadata;
         _metadataController.add(metadata);
         _updateMediaMetadata(metadata);
-        // REMOVED: Second delayed update that was causing race conditions
-      } else {
-        LoggerService.debug('🎵 Metadata not yet available');
       }
     } catch (e) {
       LoggerService.streamError('Error refreshing metadata', e);
@@ -328,8 +285,6 @@ class StreamRepository {
 
   /// Restart metadata service after network recovery
   void restartMetadataService() {
-    LoggerService.info(
-        '🎵 StreamRepository: Restarting metadata service after network recovery');
     _metadataService.startFetching();
     // Also trigger an immediate refresh to get current metadata
     refreshMetadata();
@@ -338,39 +293,24 @@ class StreamRepository {
   void _updateMediaMetadata(StreamMetadata metadata) {
     final showInfo = metadata.current;
 
-    // CRITICAL DEBUG: Log exactly what metadata we have
-    LoggerService.info(
-        '🎵 RAW METADATA: Show="${showInfo.showName}", Host="${showInfo.host}"');
-    if (showInfo.hasSongInfo) {
-      LoggerService.info(
-          '🎵 SONG INFO: Title="${showInfo.songTitle}", Artist="${showInfo.songArtist}"');
-    }
-
-    // Get current playback state - we'll need this for the native layer
-    final isPlaying = _audioHandler.playbackState.value.playing;
-
-    // Create explicit title and artist fields based on available info
-    // CRITICAL: Show name must be the primary title for lockscreen
     final String title = showInfo.showName.isNotEmpty
         ? showInfo.showName
-        : 'WBAI Radio'; // Fallback only if empty
+        : 'WBAI Radio';
 
-    // Artist field will show host info and song if available
     String artist;
     if (showInfo.hasSongInfo &&
         showInfo.songTitle != null &&
         showInfo.songTitle!.isNotEmpty) {
-      // If we have song info, include it with the host
       artist = showInfo.songArtist != null && showInfo.songArtist!.isNotEmpty
           ? 'Playing: ${showInfo.songTitle} - ${showInfo.songArtist}'
           : 'Playing: ${showInfo.songTitle}';
     } else {
-      // Just show host name
       artist =
           showInfo.host.isNotEmpty ? 'Host: ${showInfo.host}' : 'WBAI 99.5 FM';
     }
 
-    // Create a MediaItem with the show information
+    LoggerService.info('Metadata: show="$title" artist="$artist"');
+
     final mediaItem = MediaItem(
       id: 'wbai_live',
       title: title,
@@ -382,23 +322,7 @@ class StreamRepository {
           showInfo.hostImage != null ? Uri.parse(showInfo.hostImage!) : null,
     );
 
-    LoggerService.info(
-        '🎵 SENDING TO LOCKSCREEN: Title="$title", Artist="$artist"');
-
-    // ✅ STANDARD FLUTTER APPROACH: Let audio_service handle EVERYTHING!
-    // This works for iOS, Android, lifecycle events, artwork caching, etc.
-    // No custom Swift code needed - audio_service does it all!
-
-    LoggerService.info(
-        '✅ STANDARD: Calling audioHandler.updateMediaItem() - framework will handle lockscreen');
-    LoggerService.info(
-        '✅ Platform: ${Platform.isAndroid ? 'Android' : 'iOS'}, isPlaying: $isPlaying');
-    LoggerService.info('✅ Artwork URL: ${showInfo.hostImage ?? "none"}');
-
     _audioHandler.updateMediaItem(mediaItem);
-
-    LoggerService.info(
-        '✅ STANDARD: MediaItem sent to audio_service - it will handle all platform-specific details');
   }
 
   /// Handle server-specific errors and reset audio controls
