@@ -57,4 +57,17 @@ post_install do |installer|
     config.build_settings['OTHER_LDFLAGS'] ||= ['$(inherited)']
     config.build_settings['OTHER_LDFLAGS'] << '-Wl,-no_warn_duplicate_libraries'
   end
+
+  # Fix: newer CocoaPods omits ${PODS_CONFIGURATION_BUILD_DIR} from FRAMEWORK_SEARCH_PATHS,
+  # causing "Pods_Runner not found" at link time. Add it back to the Runner target xcconfigs.
+  installer.aggregate_targets.each do |aggregate_target|
+    aggregate_target.xcconfigs.each do |config_name, config_file|
+      config_file.attributes['FRAMEWORK_SEARCH_PATHS'] ||= '$(inherited)'
+      unless config_file.attributes['FRAMEWORK_SEARCH_PATHS'].include?('$(PODS_CONFIGURATION_BUILD_DIR)"')
+        config_file.attributes['FRAMEWORK_SEARCH_PATHS'] += ' "$(PODS_CONFIGURATION_BUILD_DIR)"'
+      end
+      xcconfig_path = aggregate_target.xcconfig_path(config_name)
+      config_file.save_as(xcconfig_path)
+    end
+  end
 end

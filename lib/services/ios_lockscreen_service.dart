@@ -57,6 +57,18 @@ class IOSLockscreenService {
     }
   }
   
+  Future<String?> _resolveArtworkUrl(String? showImage, String? fallback) async {
+    if (showImage != null && showImage.isNotEmpty) {
+      try {
+        final request = await HttpClient().headUrl(Uri.parse(showImage));
+        final response = await request.close();
+        await response.drain<void>();
+        if (response.statusCode == 200) return showImage;
+      } catch (_) {}
+    }
+    return fallback;
+  }
+
   /// Clear all metadata from the lockscreen
   Future<void> clearLockscreen() async {
     if (!Platform.isIOS) return;
@@ -88,13 +100,16 @@ class IOSLockscreenService {
       artist = showInfo.host.isNotEmpty ? 'Host: ${showInfo.host}' : 'WPFW 89.3 FM';
     }
     
-    // Get artwork URL if available
-    final String? artworkUrl = showInfo.hostImage;
-    
+    // Use station fallback if show image is unavailable
+    final String? artworkUrl = await _resolveArtworkUrl(
+      showInfo.hostImage,
+      metadata.stationFallbackImage,
+    );
+
     await updateLockscreen(
       title: title,
       artist: artist,
-      album: 'WPFW 89.3 FM',
+      album: 'WBAI 99.5 FM',
       artworkUrl: artworkUrl,
       isPlaying: true,
     );

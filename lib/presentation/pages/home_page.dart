@@ -348,10 +348,23 @@ class _HomePageState extends State<HomePage> {
                                                       .hostImage!,
                                                   fit: BoxFit.cover,
                                                   errorBuilder: (context,
-                                                          error,
-                                                          stackTrace) =>
-                                                      _buildLoadingContainer(
-                                                          'Error loading image'),
+                                                      error, stackTrace) {
+                                                    final fallback = state
+                                                        .metadata!
+                                                        .stationFallbackImage;
+                                                    if (fallback != null) {
+                                                      return Image.network(
+                                                        fallback,
+                                                        fit: BoxFit.cover,
+                                                        errorBuilder: (ctx,
+                                                                e, st) =>
+                                                            _buildLoadingContainer(
+                                                                'Error loading image'),
+                                                      );
+                                                    }
+                                                    return _buildLoadingContainer(
+                                                        'Error loading image');
+                                                  },
                                                 )
                                               : _buildLoadingContainer(
                                                   'Loading stream information...'),

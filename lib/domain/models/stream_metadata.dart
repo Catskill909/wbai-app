@@ -74,11 +74,13 @@ class StreamMetadata extends Equatable {
   final ShowInfo previous;
   final ShowInfo current;
   final ShowInfo next;
+  final String? stationFallbackImage;
 
   const StreamMetadata({
     required this.previous,
     required this.current,
     required this.next,
+    this.stationFallbackImage,
   });
 
   factory StreamMetadata.fromJson(dynamic jsonData) {
@@ -90,10 +92,18 @@ class StreamMetadata extends Equatable {
       throw FormatException('Invalid API response format');
     }
 
+    final global = jsonData[0]['global'];
+    final pixUrl = global?['gl_pixurl'] as String? ?? 'https://confessor.kpfk.org/pix';
+    final stapixBig = global?['gl_stapix_big'] as String?;
+    final fallback = stapixBig != null && stapixBig.isNotEmpty
+        ? '$pixUrl/$stapixBig'
+        : null;
+
     return StreamMetadata(
       previous: ShowInfo.fromJson({}), // We don't use previous show info
       current: ShowInfo.fromJson(jsonData[1]['current']),
       next: ShowInfo.fromJson(jsonData[2]['next']),
+      stationFallbackImage: fallback,
     );
   }
 
@@ -109,7 +119,7 @@ class StreamMetadata extends Equatable {
       current.hostImage != null && current.hostImage!.isNotEmpty;
 
   @override
-  List<Object?> get props => [previous, current, next];
+  List<Object?> get props => [previous, current, next, stationFallbackImage];
 
   @override
   String toString() {

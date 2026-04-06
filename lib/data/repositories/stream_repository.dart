@@ -279,7 +279,7 @@ class StreamRepository {
     refreshMetadata();
   }
 
-  void _updateMediaMetadata(StreamMetadata metadata) {
+  Future<void> _updateMediaMetadata(StreamMetadata metadata) async {
     final showInfo = metadata.current;
 
     final String title = showInfo.showName.isNotEmpty
@@ -300,6 +300,11 @@ class StreamRepository {
 
     LoggerService.info('Metadata: show="$title" artist="$artist"');
 
+    final artUri = await _resolveArtUri(
+      showInfo.hostImage,
+      metadata.stationFallbackImage,
+    );
+
     final mediaItem = MediaItem(
       id: 'wbai_live',
       title: title,
@@ -307,11 +312,26 @@ class StreamRepository {
       album: 'WBAI 99.5 FM',
       displayTitle: title,
       displaySubtitle: artist,
-      artUri:
-          showInfo.hostImage != null ? Uri.parse(showInfo.hostImage!) : null,
+      artUri: artUri,
     );
 
     _audioHandler.updateMediaItem(mediaItem);
+  }
+
+  /// Returns the show image URI if reachable, otherwise the station fallback.
+  Future<Uri?> _resolveArtUri(String? showImage, String? fallback) async {
+    if (showImage != null && showImage.isNotEmpty) {
+      try {
+        final client = HttpClient();
+        client.connectionTimeout = const Duration(seconds: 5);
+        final request = await client.headUrl(Uri.parse(showImage));
+        final response = await request.close();
+        await response.drain<void>();
+        client.close();
+        if (response.statusCode == 200) return Uri.parse(showImage);
+      } catch (_) {}
+    }
+    return fallback != null ? Uri.parse(fallback) : null;
   }
 
   /// Handle server-specific errors and reset audio controls
