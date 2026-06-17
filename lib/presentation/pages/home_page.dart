@@ -217,16 +217,20 @@ class _HomePageState extends State<HomePage> {
               final dir = Directionality.of(context);
               switch (state.playbackState) {
                 case StreamState.playing:
-                  SemanticsService.sendAnnouncement(View.of(context), 'Playing WBAI stream', dir);
+                  SemanticsService.sendAnnouncement(
+                      View.of(context), 'Playing WBAI stream', dir);
                   break;
                 case StreamState.paused:
-                  SemanticsService.sendAnnouncement(View.of(context), 'Stream stopped and reset', dir);
+                  SemanticsService.sendAnnouncement(
+                      View.of(context), 'Stream stopped and reset', dir);
                   break;
                 case StreamState.loading:
-                  SemanticsService.sendAnnouncement(View.of(context), 'Loading audio', dir);
+                  SemanticsService.sendAnnouncement(
+                      View.of(context), 'Loading audio', dir);
                   break;
                 case StreamState.buffering:
-                  SemanticsService.sendAnnouncement(View.of(context), 'Buffering audio', dir);
+                  SemanticsService.sendAnnouncement(
+                      View.of(context), 'Buffering audio', dir);
                   break;
                 case StreamState.error:
                   // error announcement happens below via error message if present
@@ -267,8 +271,8 @@ class _HomePageState extends State<HomePage> {
                 ),
               );
               // Announce error message for screen readers
-              SemanticsService.sendAnnouncement(
-                  View.of(context), state.errorMessage!, Directionality.of(context));
+              SemanticsService.sendAnnouncement(View.of(context),
+                  state.errorMessage!, Directionality.of(context));
             }
           },
           builder: (context, state) {
@@ -304,8 +308,8 @@ class _HomePageState extends State<HomePage> {
                               child: Center(
                                 child: LayoutBuilder(
                                   builder: (ctx, imgC) {
-                                    final side = desiredSide.clamp(
-                                        80.0, imgC.maxHeight);
+                                    final side =
+                                        desiredSide.clamp(80.0, imgC.maxHeight);
                                     return GestureDetector(
                                       onTap: state.metadata != null
                                           ? () {
@@ -347,8 +351,8 @@ class _HomePageState extends State<HomePage> {
                                                   state.metadata!.current
                                                       .hostImage!,
                                                   fit: BoxFit.cover,
-                                                  errorBuilder: (context,
-                                                      error, stackTrace) {
+                                                  errorBuilder: (context, error,
+                                                      stackTrace) {
                                                     final fallback = state
                                                         .metadata!
                                                         .stationFallbackImage;
@@ -356,8 +360,8 @@ class _HomePageState extends State<HomePage> {
                                                       return Image.network(
                                                         fallback,
                                                         fit: BoxFit.cover,
-                                                        errorBuilder: (ctx,
-                                                                e, st) =>
+                                                        errorBuilder: (ctx, e,
+                                                                st) =>
                                                             _buildLoadingContainer(
                                                                 'Error loading image'),
                                                       );
@@ -405,15 +409,13 @@ class _HomePageState extends State<HomePage> {
                                       SizedBox(height: isSmall ? 8 : 10),
                                       Text(
                                         'Song: ${state.metadata!.current.songTitle} - ${state.metadata!.current.songArtist}',
-                                        style:
-                                            AppTextStyles.bodyLargeForDevice(
-                                                MediaQuery.of(context).size),
+                                        style: AppTextStyles.bodyLargeForDevice(
+                                            MediaQuery.of(context).size),
                                         textAlign: TextAlign.center,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                    ] else if (state
-                                        .metadata!.next.showName
+                                    ] else if (state.metadata!.next.showName
                                         .isNotEmpty) ...[
                                       SizedBox(height: isSmall ? 8 : 10),
                                       Text(
@@ -440,8 +442,8 @@ class _HomePageState extends State<HomePage> {
                             // Playback Control with Loading State
                             Container(
                               alignment: Alignment.center,
-                              margin: EdgeInsets.symmetric(
-                                  vertical: playMarginV),
+                              margin:
+                                  EdgeInsets.symmetric(vertical: playMarginV),
                               child: Semantics(
                                 button: true,
                                 enabled: true,
@@ -457,11 +459,8 @@ class _HomePageState extends State<HomePage> {
                                 liveRegion: _showLocalLoading,
                                 child: Material(
                                   color: Colors.white,
-                                  shape: const CircleBorder(
-                                    side: BorderSide(
-                                        color: Colors.black87, width: 2),
-                                  ),
-                                  elevation: 4,
+                                  shape: const CircleBorder(),
+                                  elevation: 0,
                                   child: InkWell(
                                     customBorder: const CircleBorder(),
                                     onTap: (!isOnline ||
@@ -726,8 +725,7 @@ class _HomePageState extends State<HomePage> {
                               reverseTransitionDuration:
                                   const Duration(milliseconds: 300),
                               pageBuilder: (_, __, ___) => const NewsPage(),
-                              transitionsBuilder:
-                                  (_, animation, __, child) {
+                              transitionsBuilder: (_, animation, __, child) {
                                 final tween = Tween(
                                   begin: const Offset(0, 1),
                                   end: Offset.zero,
