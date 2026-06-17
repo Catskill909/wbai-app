@@ -220,8 +220,12 @@ class StreamRepository {
 
   Future<void> pause({AudioCommandSource? source}) async {
     try {
-      await _audioHandler.stop();
-      _updateState(StreamState.initial);
+      // Use pause() instead of stop() to keep the audio session active and
+      // preserve Now Playing status on iOS. stop() was nuking mediaItem and
+      // deactivating the session, which let another app's metadata flash on
+      // the lock screen during the subsequent play→reconnect gap.
+      await _audioHandler.pause();
+      _updateState(StreamState.paused);
     } catch (e) {
       LoggerService.streamError('Error pausing stream', e);
       _updateState(StreamState.error);

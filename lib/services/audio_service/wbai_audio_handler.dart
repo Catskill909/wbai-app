@@ -148,7 +148,14 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _currentMediaItem != null &&
         (_currentMediaItem!.title != "WBAI 99.5 FM" || _player.playing);
 
-    mediaItem.add(shouldShowPlayer ? _currentMediaItem : null);
+    if (Platform.isIOS && _currentMediaItem != null) {
+      // FIX: On iOS, never push null during state transitions (like setAudioSource
+      // briefly going to idle) because it causes another app's metadata to flash.
+      // Explicit stop() still calls mediaItem.add(null) directly.
+      mediaItem.add(_currentMediaItem);
+    } else {
+      mediaItem.add(shouldShowPlayer ? _currentMediaItem : null);
+    }
 
   }
 
@@ -245,14 +252,11 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         LoggerService.warning('AudioHandler: Failed to gain audio focus');
       }
 
-      // CACHE FIX: ALWAYS set fresh AudioSource - never trust existing one
-      final directStreamUrl = await _resolveStreamUrl(_streamUrl);
-      await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(directStreamUrl),
-          tag: _currentMediaItem,
-        ),
-      );
+      // REMOVED: Forced setAudioSource on every play()
+      // Calling setAudioSource destroys the iOS AVPlayerItem, causing the lock
+      // screen to temporarily drop and flash another app's metadata. We will
+      // instead just resume the existing player. If the stream buffer is stale,
+      // it will throw an error and _reconnect() will handle it gracefully.
 
       await _player.play();
 
@@ -284,8 +288,12 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     try {
       await _player.pause();
 
-      final session = await AudioSession.instance;
-      await session.setActive(false);
+      // NOTE: Do NOT call session.setActive(false) here.
+      // Keeping the audio session active ensures iOS maintains this app as the
+      // "Now Playing" app, preventing another app's metadata from briefly
+      // appearing on the lock screen during the pause→play reconnect gap.
+      // final session = await AudioSession.instance;
+      // await session.setActive(false);
 
       _updateMediaSession(_player.playing, _currentMediaItem!);
 
