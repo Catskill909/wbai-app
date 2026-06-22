@@ -32,14 +32,12 @@ Future<void> main() async {
     statusBarBrightness: Brightness.light,
   ));
 
-  // ANDROID-ONLY: Lock orientation to portrait mode
-  if (Platform.isAndroid) {
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-    LoggerService.info('🤖 ANDROID: Orientation locked to portrait mode');
-  }
+  // Lock orientation to portrait on all devices (phone and tablet).
+  // portraitUp only, to match the iOS Info.plist (no upside-down).
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+  LoggerService.info('🔒 Orientation locked to portrait (phone + tablet)');
 
   // Initialize logger
   LoggerService.init();

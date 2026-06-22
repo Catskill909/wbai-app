@@ -288,12 +288,14 @@ class _HomePageState extends State<HomePage> {
                       final sw = constraints.maxWidth;
                       // Preferred image side from screen width — only shrinks when
                       // remaining height after fixed elements is actually smaller.
+                      // A touch larger on bigger screens / tablets.
                       final desiredSide =
-                          sw * (isSmall ? 0.80 : (isTab ? 0.70 : 0.85));
+                          sw * (isSmall ? 0.80 : (isTab ? 0.78 : 0.90));
                       final bottomPad = isTab ? 100.0 : 80.0;
-                      final imgTop = isSmall ? 12.0 : 20.0;
-                      final playMarginV =
-                          isSmall ? 20.0 : (isTab ? 32.0 : 28.0);
+                      // Breathing room above the image, scaled up on larger
+                      // screens and tablets (kept tight on small phones).
+                      final imgTop = isSmall ? 8.0 : (isTab ? 40.0 : 24.0);
+                      final playMarginV = isSmall ? 20.0 : 28.0;
                       final hPad = isSmall ? 12.0 : 16.0;
                       return Padding(
                         padding: EdgeInsets.only(bottom: bottomPad),
