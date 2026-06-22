@@ -12,7 +12,13 @@ class ConnectivityService {
   final Dio _dio;
 
   static const String _probeUrl = 'https://www.google.com/generate_204';
-  static const Duration _timeout = Duration(milliseconds: 1500);
+  // A freshly re-enabled radio (e.g. just after Airplane Mode off) needs a
+  // moment to actually route traffic. A single short probe gives a false
+  // "offline" that latches until the next transport change — which may never
+  // come. So the probe is given a slightly longer timeout AND retried.
+  static const Duration _timeout = Duration(milliseconds: 3000);
+  static const int _probeAttempts = 3;
+  static const Duration _probeRetryGap = Duration(milliseconds: 800);
 
   ConnectivityService({Dio? dio}) : _dio = dio ?? Dio() {
     _dio.options.connectTimeout = _timeout;
@@ -34,7 +40,20 @@ class ConnectivityService {
   }
 
   /// Returns true if the device has internet reachability.
+  /// Retries a few times so a cold radio doesn't produce a false negative
+  /// that latches the app into the offline modal.
   Future<bool> hasInternet() async {
+    for (var attempt = 1; attempt <= _probeAttempts; attempt++) {
+      if (await _probeOnce()) return true;
+      if (attempt < _probeAttempts) {
+        await Future.delayed(_probeRetryGap);
+      }
+    }
+    return false;
+  }
+
+  /// A single internet reachability probe.
+  Future<bool> _probeOnce() async {
     try {
       final res = await _dio.head(
         _probeUrl,
@@ -42,8 +61,7 @@ class ConnectivityService {
           validateStatus: (code) => code != null && code >= 200 && code < 400,
         ),
       );
-      final ok = res.statusCode == 204 || (res.statusCode ?? 0) >= 200;
-      return ok;
+      return res.statusCode == 204 || (res.statusCode ?? 0) >= 200;
     } catch (_) {
       return false;
     }

@@ -33,9 +33,23 @@ class StreamRepository {
 
   final _stateController = StreamController<StreamState>.broadcast();
   final _metadataController = StreamController<StreamMetadata>.broadcast();
+  // Emits a message when a server-specific error occurs (Icecast down, stream
+  // not found, etc.) and null when it's cleared. Drives the server-error modal,
+  // distinct from generic playback errors. See play-button-fix.md Phase 9.
+  final _serverErrorController = StreamController<String?>.broadcast();
 
   StreamState _currentState = StreamState.initial;
   StreamMetadata? _currentMetadata;
+
+  // PHASE 5: connecting watchdog. Playback starts immediately (no blocking
+  // pre-flight), but if it never reaches `playing` within this window we probe
+  // the server: if it's down, surface the error modal and halt reconnects;
+  // if it's healthy, keep waiting (slow connection, not a dead server).
+  Timer? _connectingWatchdog;
+  static const Duration _connectingTimeout = Duration(seconds: 8);
+
+  // PHASE 10: guard against re-entrancy while classifying a player error.
+  bool _handlingPlayerError = false;
 
   StreamRepository({
     required WBAIAudioHandler audioHandler,
@@ -118,6 +132,7 @@ class StreamRepository {
   // Public streams
   Stream<StreamState> get stateStream => _stateController.stream;
   Stream<StreamMetadata> get metadataStream => _metadataController.stream;
+  Stream<String?> get serverErrorStream => _serverErrorController.stream;
 
   // Current values
   StreamState get currentState => _currentState;
@@ -164,7 +179,10 @@ class StreamRepository {
             _updateState(StreamState.initial);
             break;
           case AudioProcessingState.error:
-            _updateState(StreamState.error);
+            // PHASE 10: the handler emits this after its bounded reconnect is
+            // exhausted (e.g. a mid-stream Icecast drop). Classify it so a real
+            // server outage surfaces the modal, not just a generic error.
+            _onPlayerError();
             break;
         }
 
@@ -182,39 +200,120 @@ class StreamRepository {
 
   Future<void> play({AudioCommandSource? source}) async {
     try {
-      // Pre-flight server health check
-      try {
-        final healthResult = await AudioServerHealthChecker.checkServerHealth(
-            StreamConstants.streamUrl);
+      LoggerService.info(
+          '🎵 StreamRepository: Play requested from ${source ?? 'UI'} - starting immediately');
 
-        if (!healthResult.isHealthy) {
-          await _handleServerError(healthResult);
-          return;
-        }
-      } on NetworkConnectivityException {
-        _updateState(StreamState.error);
-        return;
-      }
-
+      // PHASE 2: No blocking pre-flight health check. Reflect activity in the
+      // UI immediately and let the player connect. The old pre-flight GET added
+      // ~2s of fixed latency in front of every play; just_audio surfaces real
+      // connection/stream errors which we classify on the failure path below.
       _updateState(StreamState.connecting);
+
+      // PHASE 5: arm the watchdog in case the connection silently stalls (the
+      // audio handler swallows connect failures into a background reconnect
+      // loop, so they never throw here).
+      _startConnectingWatchdog();
+
       await _audioHandler.play();
       // State will be updated by the playback state listener
     } catch (e) {
       LoggerService.streamError('Error playing stream', e);
-
-      // Try to classify the error
-      final errorType = _classifyPlaybackError(e);
-      if (errorType != null) {
-        final healthResult = AudioServerHealthResult(
-          isHealthy: false,
-          errorType: errorType,
-          message: 'Playback failed: ${e.toString()}',
-        );
-        await _handleServerError(healthResult);
-      } else {
-        _updateState(StreamState.error);
-      }
+      _cancelConnectingWatchdog();
+      await _handlePlaybackFailure(e);
       rethrow;
+    }
+  }
+
+  /// Classify and surface a playback failure. Tries to classify directly from
+  /// the thrown error first; if that's inconclusive, consults the health
+  /// checker to distinguish a server outage from a generic error — but only on
+  /// the failure path, so the happy path carries no pre-flight latency.
+  Future<void> _handlePlaybackFailure(Object e) async {
+    final directType = _classifyPlaybackError(e);
+    if (directType != null) {
+      await _handleServerError(AudioServerHealthResult(
+        isHealthy: false,
+        errorType: directType,
+        message: 'Playback failed: $e',
+      ));
+      return;
+    }
+
+    try {
+      final health = await AudioServerHealthChecker.checkServerHealth(
+          StreamConstants.streamUrl);
+      if (!health.isHealthy) {
+        await _handleServerError(health);
+        return;
+      }
+    } on NetworkConnectivityException catch (ne) {
+      LoggerService.info(
+          '🎵 StreamRepository: Network connectivity issue during failure classification: $ne');
+    }
+
+    _updateState(StreamState.error);
+  }
+
+  /// PHASE 5: Arm a watchdog that fires if playback hasn't reached `playing`
+  /// within [_connectingTimeout]. On a healthy-but-slow server it does nothing;
+  /// on a down server it shows the error modal and halts the reconnect loop.
+  void _startConnectingWatchdog() {
+    _connectingWatchdog?.cancel();
+    _connectingWatchdog = Timer(_connectingTimeout, _onConnectingTimeout);
+  }
+
+  void _cancelConnectingWatchdog() {
+    _connectingWatchdog?.cancel();
+    _connectingWatchdog = null;
+  }
+
+  Future<void> _onConnectingTimeout() async {
+    if (_currentState == StreamState.playing) return;
+
+    LoggerService.warning(
+        '🎵 StreamRepository: Connecting watchdog fired (state=$_currentState) - probing server health');
+    try {
+      final health = await AudioServerHealthChecker.checkServerHealth(
+          StreamConstants.streamUrl);
+      if (!health.isHealthy) {
+        LoggerService.info(
+            '🎵 StreamRepository: Watchdog confirmed server down (${health.errorType}) - showing modal, halting reconnect');
+        _audioHandler.haltReconnect();
+        await _handleServerError(health);
+      } else {
+        LoggerService.info(
+            '🎵 StreamRepository: Watchdog - server healthy, continuing to wait for connection');
+      }
+    } on NetworkConnectivityException catch (ne) {
+      LoggerService.info(
+          '🎵 StreamRepository: Watchdog network connectivity issue: $ne');
+      _audioHandler.haltReconnect();
+      _updateState(StreamState.error);
+    }
+  }
+
+  /// PHASE 10: Classify a player error (reconnect exhausted) and surface it: a
+  /// real server outage shows the modal; anything else stays a generic error.
+  Future<void> _onPlayerError() async {
+    if (_handlingPlayerError) return;
+    _handlingPlayerError = true;
+    try {
+      _cancelConnectingWatchdog();
+      _updateState(StreamState.error);
+      LoggerService.warning(
+          '🎵 StreamRepository: Player error - probing server to classify');
+      final health = await AudioServerHealthChecker.checkServerHealth(
+          StreamConstants.streamUrl);
+      if (!health.isHealthy) {
+        await _handleServerError(health);
+      }
+    } on NetworkConnectivityException catch (ne) {
+      LoggerService.info(
+          '🎵 StreamRepository: Player error during network issue: $ne');
+    } catch (e) {
+      LoggerService.streamError('Error classifying player error', e);
+    } finally {
+      _handlingPlayerError = false;
     }
   }
 
@@ -262,6 +361,15 @@ class StreamRepository {
       LoggerService.info('Stream state changed: $_currentState -> $newState');
       _currentState = newState;
       _stateController.add(newState);
+
+      // PHASE 5: once playback settles, the connecting watchdog is done.
+      if (newState == StreamState.playing ||
+          newState == StreamState.paused ||
+          newState == StreamState.stopped ||
+          newState == StreamState.error ||
+          newState == StreamState.initial) {
+        _cancelConnectingWatchdog();
+      }
     }
   }
 
@@ -385,6 +493,10 @@ class StreamRepository {
     // Update audio state manager
     AudioStateManager().handleServerError(audioState, errorMessage);
 
+    // Signal the UI to show the server-error modal (distinct from a generic
+    // playback error). The bloc maps this to showServerErrorModal.
+    _serverErrorController.add(errorMessage);
+
     // Update local stream state
     _updateState(StreamState.error);
   }
@@ -450,6 +562,7 @@ class StreamRepository {
     AudioStateManager().clearServerError();
     AudioServerHealthChecker
         .clearCache(); // Clear health check cache for fresh retry
+    _serverErrorController.add(null); // Hide the server-error modal
     _updateState(StreamState.initial);
   }
 
@@ -485,10 +598,12 @@ class StreamRepository {
   @mustCallSuper
   @mustCallSuper
   void dispose() {
+    _cancelConnectingWatchdog();
     _metadataSubscription?.cancel();
     _playbackStateSubscription?.cancel();
     _stateController.close();
     _metadataController.close();
+    _serverErrorController.close();
     _metadataService.dispose();
     // Also dispose the native metadata service to clean up any active timers
     _nativeMetadataService.dispose();

@@ -7,6 +7,7 @@ import 'dart:io';
 import 'core/di/service_locator.dart';
 import 'core/constants/stream_constants.dart';
 import 'core/services/logger_service.dart';
+import 'core/services/audio_server_health_checker.dart';
 import 'data/repositories/stream_repository.dart';
 // import 'presentation/bloc/stream_bloc.dart'; // Removed: Using factory function instead
 import 'presentation/pages/home_page.dart';
@@ -92,6 +93,13 @@ Future<void> main() async {
           '🤖 Android app-close observer registered (detached only)');
     }
 
+    // ALL PLATFORMS: re-check connectivity + clear the health-check cache when
+    // the app returns to the foreground. Without this, a cold-radio probe that
+    // failed while backgrounded could leave isOnline latched false (dead play
+    // button) until a transport change. See play-button-fix.md Phase 1 + 3.
+    WidgetsBinding.instance.addObserver(_AppResumeObserver());
+    LoggerService.info('🔄 App-resume observer registered (all platforms)');
+
     // Remove splash after minimum display time, but don't block runApp
     Future.delayed(const Duration(seconds: 2), FlutterNativeSplash.remove);
 
@@ -124,6 +132,25 @@ class _AndroidAppCloseObserver extends WidgetsBindingObserver {
         );
       } catch (e) {
         LoggerService.error('App close cleanup failed', e);
+      }
+    }
+  }
+}
+
+// ALL PLATFORMS: reacts when the app returns to the foreground.
+// Clears the (success-only) health-check cache so the next play re-probes the
+// server, and re-checks connectivity so a stale offline reading from a cold
+// radio doesn't leave the play button disabled.
+class _AppResumeObserver extends WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      LoggerService.info('🔄 App resumed - clearing health cache, re-checking connectivity');
+      AudioServerHealthChecker.clearCache();
+      try {
+        getIt<ConnectivityCubit>().checkNow();
+      } catch (e) {
+        LoggerService.error('🔄 App-resume connectivity check failed', e);
       }
     }
   }

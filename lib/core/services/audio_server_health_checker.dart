@@ -2,15 +2,25 @@ import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'logger_service.dart';
+import '../utils/m3u_parser.dart';
 
 /// Handles server health checking for audio streaming endpoints
 /// Distinguishes between network connectivity and server availability
 class AudioServerHealthChecker {
-  static final Dio _dio = Dio();
-  static const Duration _healthCheckTimeout = Duration(seconds: 5);
-  static const Duration _cacheTimeout = Duration(seconds: 30);
+  static Dio _dio = Dio();
 
-  // Cache to prevent excessive health checks
+  /// Test seam: inject a Dio with a mock adapter to exercise server-down paths
+  /// without a real network. Pair with [clearCache] between cases.
+  static void debugSetDio(Dio dio) => _dio = dio;
+  static const Duration _healthCheckTimeout = Duration(seconds: 5);
+  // Only successful results are cached, and only briefly. Failures are NEVER
+  // cached: a single failed check (e.g. a cold radio after resuming from
+  // background) used to poison this static cache for 30s and make every
+  // subsequent play return "unhealthy" until the process was killed — the
+  // "needs reboot" bug. See play-button-fix.md Phase 1.
+  static const Duration _cacheTimeout = Duration(seconds: 5);
+
+  // Cache to prevent excessive health checks (success-only).
   static DateTime? _lastHealthCheck;
   static bool? _lastHealthResult;
 
@@ -28,26 +38,42 @@ class AudioServerHealthChecker {
   static Future<AudioServerHealthResult> checkServerHealth(
       String streamUrl) async {
     try {
-      // Check cache first to prevent excessive requests
-      if (_lastHealthCheck != null && _lastHealthResult != null) {
+      // Check cache first to prevent excessive requests.
+      // ONLY positive (healthy) results are cached — never failures — so a
+      // transient failure can't lock out playback. See play-button-fix.md.
+      if (_lastHealthCheck != null && _lastHealthResult == true) {
         final timeSinceLastCheck = DateTime.now().difference(_lastHealthCheck!);
         if (timeSinceLastCheck < _cacheTimeout) {
-          return AudioServerHealthResult(
-            isHealthy: _lastHealthResult!,
-            errorType: _lastHealthResult!
-                ? null
-                : AudioServerErrorType.serverUnavailable,
-            statusCode: _lastHealthResult! ? 200 : null,
+          LoggerService.info(
+              '🏥 AudioServerHealthChecker: Using cached healthy result');
+          return const AudioServerHealthResult(
+            isHealthy: true,
+            statusCode: 200,
           );
         }
       }
 
       _configureDio();
 
+      // Resolve M3U playlists to the DIRECT Icecast endpoint before probing.
+      // WBAI currently streams a direct URL, but the station will switch to a
+      // .m3u playlist; this resolves it so we probe the real mount and not just
+      // the playlist host. Non-.m3u URLs pass through unchanged.
+      //
+      // Resolution errors are NOT caught here on purpose — they propagate to
+      // the same SocketException/DioException classification below, so a DNS/
+      // no-network failure is reported as a network issue while a refused/timed-
+      // out playlist host is reported as a server issue. (Both the .m3u fetch
+      // and the mount probe are server endpoints, so either failing == down.)
+      final String probeUrl = await _resolveDirectStreamUrl(streamUrl);
+
+      LoggerService.info(
+          '🏥 AudioServerHealthChecker: Checking server health for: $probeUrl');
+
       // Use GET request instead of HEAD for Icecast/Shoutcast compatibility
       // Icecast servers return 400 for HEAD requests but 200 for GET
       final response = await _dio.get(
-        streamUrl,
+        probeUrl,
         options: Options(
           validateStatus: (status) => status != null && status < 500,
           responseType: ResponseType.stream, // Don't download the entire stream
@@ -59,13 +85,13 @@ class AudioServerHealthChecker {
       );
 
       final statusCode = response.statusCode ?? 0;
-
-      // Cache the result
-      _lastHealthCheck = DateTime.now();
+      LoggerService.info(
+          '🏥 AudioServerHealthChecker: Server responded with status: $statusCode');
 
       // Analyze response
       if (statusCode >= 200 && statusCode < 300) {
-        // Server is healthy
+        // Server is healthy — cache ONLY this positive result.
+        _lastHealthCheck = DateTime.now();
         _lastHealthResult = true;
         return AudioServerHealthResult(
           isHealthy: true,
@@ -73,7 +99,6 @@ class AudioServerHealthChecker {
         );
       } else if (statusCode == 404) {
         // Stream not found
-        _lastHealthResult = false;
         return AudioServerHealthResult(
           isHealthy: false,
           errorType: AudioServerErrorType.streamNotFound,
@@ -82,7 +107,6 @@ class AudioServerHealthChecker {
         );
       } else if (statusCode == 503) {
         // Server overloaded
-        _lastHealthResult = false;
         return AudioServerHealthResult(
           isHealthy: false,
           errorType: AudioServerErrorType.serverOverloaded,
@@ -91,7 +115,6 @@ class AudioServerHealthChecker {
         );
       } else if (statusCode >= 400 && statusCode < 500) {
         // Client error (auth, forbidden, etc.)
-        _lastHealthResult = false;
         return AudioServerHealthResult(
           isHealthy: false,
           errorType: AudioServerErrorType.authenticationError,
@@ -100,7 +123,6 @@ class AudioServerHealthChecker {
         );
       } else {
         // Other server error
-        _lastHealthResult = false;
         return AudioServerHealthResult(
           isHealthy: false,
           errorType: AudioServerErrorType.serverError,
@@ -119,18 +141,14 @@ class AudioServerHealthChecker {
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.sendTimeout) {
-        // Timeout - could be server or network
-        _lastHealthResult = false;
-        _lastHealthCheck = DateTime.now();
+        // Timeout - could be server or network. Do NOT cache (transient).
         return AudioServerHealthResult(
           isHealthy: false,
           errorType: AudioServerErrorType.connectionTimeout,
           message: 'Connection to server timed out',
         );
       } else if (e.type == DioExceptionType.connectionError) {
-        // Connection refused - server is down
-        _lastHealthResult = false;
-        _lastHealthCheck = DateTime.now();
+        // Connection refused - server is down. Do NOT cache (transient).
         return AudioServerHealthResult(
           isHealthy: false,
           errorType: AudioServerErrorType.serverUnavailable,
@@ -143,8 +161,7 @@ class AudioServerHealthChecker {
     } catch (e) {
       LoggerService.audioError(
           '🏥 AudioServerHealthChecker: Unexpected error', e);
-      _lastHealthResult = false;
-      _lastHealthCheck = DateTime.now();
+      // Do NOT cache unexpected failures (transient).
       return AudioServerHealthResult(
         isHealthy: false,
         errorType: AudioServerErrorType.unknownError,
@@ -153,10 +170,39 @@ class AudioServerHealthChecker {
     }
   }
 
+  /// Resolve an M3U playlist URL to its direct stream endpoint so health
+  /// checks probe the actual Icecast server. Non-.m3u URLs are returned as-is.
+  /// Throws if the playlist can't be fetched or contains no stream URL — the
+  /// caller treats that as "server unavailable".
+  static Future<String> _resolveDirectStreamUrl(String url) async {
+    if (!url.endsWith('.m3u')) return url;
+
+    LoggerService.info(
+        '🏥 AudioServerHealthChecker: Resolving M3U playlist: $url');
+    final res = await _dio.get<String>(
+      url,
+      options: Options(
+        responseType: ResponseType.plain,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+    if ((res.statusCode ?? 0) != 200) {
+      throw Exception('Playlist returned status ${res.statusCode}');
+    }
+    final direct = M3UParser.parseStreamUrl(res.data ?? '');
+    if (direct == null) {
+      throw Exception('No stream URL found in M3U playlist');
+    }
+    LoggerService.info(
+        '🏥 AudioServerHealthChecker: Resolved direct stream: $direct');
+    return direct;
+  }
+
   /// Clears the health check cache
   static void clearCache() {
     _lastHealthCheck = null;
     _lastHealthResult = null;
+    LoggerService.info('🏥 AudioServerHealthChecker: Cache cleared');
   }
 
   /// Performs a lightweight ping to check basic connectivity

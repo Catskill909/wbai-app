@@ -26,6 +26,25 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ANDROID: throttle diagnostic logs
   DateTime? _lastAndroidDiag;
 
+  // PHASE 5: Gate the background reconnect loop. When the server is confirmed
+  // down (by the repository's connecting watchdog), we halt reconnects so the
+  // app isn't silently hammering a dead server behind the error modal. A fresh
+  // play() re-enables it.
+  bool _reconnectEnabled = true;
+
+  // PHASE 10: bounded reconnect with backoff. A radio app should retry a
+  // dropped stream, but not silently forever — after _maxReconnectAttempts we
+  // surface an error state so the repository can classify it (server modal).
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 3;
+
+  /// Exponential backoff for reconnect attempt N (1-based): 2s, 4s, 8s … capped.
+  static Duration reconnectBackoff(int attempt) {
+    final clamped = attempt < 1 ? 1 : attempt;
+    final seconds = (1 << clamped).clamp(2, 30); // 2,4,8,16,30…
+    return Duration(seconds: seconds);
+  }
+
   WBAIAudioHandler._(
     this._player,
     this._streamUrl,
@@ -94,8 +113,14 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // Set up event listeners
       _player.processingStateStream.listen(_handleProcessingState);
 
-      // WORKING PATTERN: Connect event streams like Pacifica app
-      _player.playbackEventStream.listen(_broadcastState);
+      // WORKING PATTERN: Connect event streams like Pacifica app.
+      // onError is the documented just_audio way to catch async playback
+      // errors (e.g. the server dropping the connection mid-stream, or an
+      // async load failure). Without it those errors are silently unhandled.
+      _player.playbackEventStream.listen(
+        _broadcastState,
+        onError: _handleStreamError,
+      );
       _player.playerStateStream.listen(_handlePlayerState);
 
       if (Platform.isAndroid) {
@@ -211,9 +236,50 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     LoggerService.audioError('Audio error', error);
   }
 
+  /// Handles async errors from the playback event stream (e.g. the server
+  /// dropping the connection mid-stream). Triggers the gated reconnect loop;
+  /// when reconnect has been halted (server confirmed down) we leave it alone.
+  void _handleStreamError(Object error, StackTrace stackTrace) {
+    LoggerService.audioError('Playback stream error', error);
+    if (_reconnectEnabled) {
+      _reconnect();
+    }
+  }
+
+  /// PHASE 5: Stop the background reconnect loop. Called by the repository
+  /// once the server is confirmed down, so we don't keep retrying behind the
+  /// error modal. Re-enabled by the next play().
+  void haltReconnect() {
+    if (_reconnectEnabled) {
+      LoggerService.info('🎵 Reconnect loop halted (server confirmed down)');
+    }
+    _reconnectEnabled = false;
+  }
+
   Future<void> _reconnect() async {
+    if (!_reconnectEnabled) {
+      LoggerService.info('🎵 Reconnect skipped - loop is halted');
+      return;
+    }
+
+    _reconnectAttempts++;
+    if (_reconnectAttempts > _maxReconnectAttempts) {
+      // PHASE 10: stop retrying and surface an error so the repository can
+      // classify it (server modal) instead of reconnecting silently forever.
+      LoggerService.audioError(
+          '🎵 Reconnect exhausted after $_maxReconnectAttempts attempts - surfacing error',
+          null);
+      _reconnectEnabled = false;
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.error,
+        playing: false,
+      ));
+      return;
+    }
+
     try {
-      LoggerService.info('🎵 Attempting to reconnect to stream...');
+      LoggerService.info(
+          '🎵 Reconnect attempt $_reconnectAttempts/$_maxReconnectAttempts...');
 
       // EXPERT: Reset with resolved direct stream URL
       await _player.pause();
@@ -228,14 +294,18 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       // Resume playback
       await _player.play();
+      _reconnectAttempts = 0; // success - reset the counter
       LoggerService.info('🎵 Reconnection successful');
     } catch (e) {
       LoggerService.audioError('Error during reconnection', e);
       _handleError(e);
 
-      // Schedule another reconnect attempt
-      Future.delayed(const Duration(seconds: 5), () {
-        if (!_player.playing) {
+      // Schedule another reconnect attempt with backoff (unless halted).
+      final delay = reconnectBackoff(_reconnectAttempts);
+      LoggerService.info(
+          '🎵 Reconnect attempt failed - retrying in ${delay.inSeconds}s');
+      Future.delayed(delay, () {
+        if (_reconnectEnabled && !_player.playing) {
           _reconnect();
         }
       });
@@ -245,6 +315,11 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> play() async {
     try {
+      // PHASE 5/10: a fresh play attempt re-enables the reconnect loop that a
+      // prior server-down may have halted, and resets the attempt counter.
+      _reconnectEnabled = true;
+      _reconnectAttempts = 0;
+
       // CRITICAL: Request audio focus before playing (Samsung requirement)
       final session = await AudioSession.instance;
       final success = await session.setActive(true);

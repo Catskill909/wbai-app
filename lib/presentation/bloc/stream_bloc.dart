@@ -30,6 +30,11 @@ class UpdatePlaybackState extends StreamEvent {
 
 class ClearServerError extends StreamEvent {}
 
+class ServerErrorOccurred extends StreamEvent {
+  final String? message; // null = clear the modal
+  ServerErrorOccurred(this.message);
+}
+
 // States
 class StreamBlocState {
   final StreamState playbackState;
@@ -81,6 +86,7 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
   final StreamRepository _repository;
   StreamSubscription? _stateSubscription;
   StreamSubscription? _metadataSubscription;
+  StreamSubscription? _serverErrorSubscription;
 
   StreamBloc({
     required StreamRepository repository,
@@ -99,6 +105,7 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     on<UpdateMetadata>(_onUpdateMetadata);
     on<UpdatePlaybackState>(_onUpdatePlaybackState);
     on<ClearServerError>(_onClearServerError);
+    on<ServerErrorOccurred>(_onServerErrorOccurred);
   }
 
   void _initializeSubscriptions() {
@@ -120,6 +127,13 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     _metadataSubscription = _repository.metadataStream.listen(
       (metadata) {
         add(UpdateMetadata(metadata));
+      },
+    );
+
+    // Listen to server-error signals (Icecast down, stream not found, etc.)
+    _serverErrorSubscription = _repository.serverErrorStream.listen(
+      (message) {
+        add(ServerErrorOccurred(message));
       },
     );
   }
@@ -201,10 +215,29 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     UpdatePlaybackState event,
     Emitter<StreamBlocState> emit,
   ) {
+    // A server error is signalled on its own channel (ServerErrorOccurred).
+    // Don't let the generic state bridge — which always has isServerError=false
+    // — clobber an active server-error modal/message. Just track the state.
+    if (state.showServerErrorModal && !event.isServerError) {
+      emit(state.copyWith(playbackState: event.state));
+      return;
+    }
     emit(state.copyWith(
       playbackState: event.state,
       errorMessage: event.errorMessage,
       showServerErrorModal: event.isServerError,
+    ));
+  }
+
+  void _onServerErrorOccurred(
+    ServerErrorOccurred event,
+    Emitter<StreamBlocState> emit,
+  ) {
+    final hasError = event.message != null;
+    emit(state.copyWith(
+      playbackState: hasError ? StreamState.error : state.playbackState,
+      showServerErrorModal: hasError,
+      errorMessage: event.message,
     ));
   }
 
@@ -223,6 +256,7 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
   Future<void> close() async {
     await _stateSubscription?.cancel();
     await _metadataSubscription?.cancel();
+    await _serverErrorSubscription?.cancel();
     await super.close();
   }
 }
