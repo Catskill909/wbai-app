@@ -54,6 +54,7 @@
             android:name="com.ryanheise.audioservice.AudioService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true"
+            android:stopWithTask="true"
             xmlns:tools="http://schemas.android.com/tools"
             tools:ignore="Instantiatable">
             <intent-filter>

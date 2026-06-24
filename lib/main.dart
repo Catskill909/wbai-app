@@ -55,9 +55,17 @@ Future<void> main() async {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.wbaifm.radio.audio',
         androidNotificationChannelName: 'WBAI Radio',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause:
-            true, // ROLLBACK: Restore original working value
+        // Must be false to pair with androidStopForegroundOnPause: false
+        // (audio_service asserts an ongoing notification requires stop-on-pause).
+        androidNotificationOngoing: false,
+        // APP-CLOSE NOTIFICATION FIX (ported from KPFK, proven by native logcat):
+        // with `true`, pause drops the service out of the foreground; swiping the
+        // app away then kills it before onTaskRemoved can run stop(), orphaning the
+        // notification (close-while-paused). `false` keeps the service foreground
+        // through pause so onTaskRemoved fires reliably in both states. Safe for the
+        // lock screen — the art blank was a separate STATE_NONE issue fixed in
+        // _broadcastState, not this flag.
+        androidStopForegroundOnPause: false,
         androidNotificationChannelDescription: 'WBAI Radio Audio Playback',
         androidNotificationIcon: 'drawable/ic_notification',
         androidShowNotificationBadge: false,

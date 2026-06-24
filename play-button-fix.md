@@ -52,3 +52,21 @@ detection will automatically probe the real Icecast mount. The audio handler's
 - Background → resume → play works immediately.
 - Airplane Mode on → off (several times): modal clears, reconnect + spinner work.
 - (If possible) block the stream host at the router to see the server modal.
+
+---
+
+## 2026-06-24 — Android startup, metadata reliability, single control, lock-screen port
+
+See **`docs/android-fixes-2026-06.md`** for full details. Summary:
+- **Startup speed:** removed the eager `setAudioSource` from `WBAIAudioHandler._init()`
+  (was blocking the UI on a stream pre-connect); source now built on first `play()`.
+- **Metadata reliability:** `metadata_service.dart` timeout 5s→12s + fast initial retry,
+  fixing the intermittent ~30s "Loading stream information…" (5s timeout was shorter than
+  the ~7s API response → first fetch failed → 30s wait). NO caching by design (live radio
+  = current feed only). Metadata URL is intentionally KPFK's PHP placeholder for now.
+- **Notification:** removed the redundant stop button — single play/pause only (ported
+  from KPFK).
+- **Lock-screen/notification fixes ported from KPFK** (STATE_NONE remap, _rebuildingSource,
+  artUri preserve, MediaItem dedup, abort guard, onTaskRemoved→stop,
+  androidStopForegroundOnPause:false, manifest stopWithTask). Code-complete; do a focused
+  WBAI device pass when convenient.

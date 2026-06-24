@@ -32,6 +32,18 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // play() re-enables it.
   bool _reconnectEnabled = true;
 
+  // ANDROID LOCK-SCREEN BLANK FIX: True while play() is rebuilding the audio
+  // source. setAudioSource() momentarily drops the player to ProcessingState.idle;
+  // we use this flag in _broadcastState to (a) keep showing the current MediaItem
+  // and (b) report `loading` instead of `idle` so the MediaSession never goes
+  // STATE_NONE (which makes Samsung's lock screen drop the whole session).
+  bool _rebuildingSource = false;
+
+  // ANDROID LOCK-SCREEN ART FLICKER FIX: signature of the last MediaItem pushed to
+  // the mediaItem stream, so _broadcastState/updateMediaItem skip redundant
+  // identical pushes that otherwise re-decode + re-parcel the artwork bitmap.
+  String? _lastPushedMediaSignature;
+
   // PHASE 10: bounded reconnect with backoff. A radio app should retry a
   // dropped stream, but not silently forever — after _maxReconnectAttempts we
   // surface an error state so the repository can classify it (server modal).
@@ -86,23 +98,14 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
 
-      // EXPERT SOLUTION: Parse M3U playlist to get direct stream URL
-      final directStreamUrl = await _resolveStreamUrl(_streamUrl);
-      LoggerService.info('AudioHandler: Resolved stream URL: $directStreamUrl');
-
-      // Configure audio source with direct stream URL (industry standard)
-      await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(directStreamUrl),
-          // Android uses a real tag so just_audio_background can render notifications
-          // iOS keeps using the dummy item to defer lockscreen to Swift
-          tag: _currentMediaItem,
-        ),
-      );
-      if (Platform.isAndroid) {
-        // Removed: _lastAndroidTagApplied tracking (simplified)
-        _debugDumpAndroidState('init:setAudioSource');
-      }
+      // STARTUP-SPEED FIX (2026-06-24, confirmed much faster on device): this used
+      // to eagerly `await _resolveStreamUrl()` + `await _player.setAudioSource()`
+      // here to pre-connect the live stream at app launch. Connecting WBAI's stream
+      // held up startup so the home screen sat on the "Loading stream information…"
+      // placeholder. There is no reason to buffer the live stream before the user
+      // presses play — play() already builds the source on demand (its cold/Android
+      // rebuild path). So we DEFER source setup to play() and keep startup off the
+      // network's critical path. The player stays idle until play(), which is fine.
 
       // Only update playback state, not metadata
       // Our Swift implementation will handle the lockscreen metadata
@@ -142,24 +145,37 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   // CRITICAL: EXACT working pattern from Pacifica app (SINGLE SOURCE OF TRUTH)
   void _broadcastState([PlaybackEvent? event]) {
+    // ANDROID LOCK-SCREEN BLANK — THE REAL CAUSE (proven on KPFK via native logcat):
+    // play() rebuilds the source via setAudioSource(), which momentarily drops the
+    // player to ProcessingState.idle. Mapping that to AudioProcessingState.idle makes
+    // audio_service push MediaSession PlaybackState=STATE_NONE; Samsung's lock-screen
+    // widget treats a NONE session as inactive and removes the whole session (art +
+    // metadata) before re-adding it ~100ms later. While we're knowingly rebuilding,
+    // report `loading` instead of `idle` so the session stays active.
+    final ProcessingState rawState = _player.processingState;
+    final AudioProcessingState mappedState =
+        (_rebuildingSource && rawState == ProcessingState.idle)
+            ? AudioProcessingState.loading
+            : const {
+                ProcessingState.idle: AudioProcessingState.idle,
+                ProcessingState.loading: AudioProcessingState.loading,
+                ProcessingState.buffering: AudioProcessingState.buffering,
+                ProcessingState.ready: AudioProcessingState.ready,
+                ProcessingState.completed: AudioProcessingState.completed,
+              }[rawState]!;
+
     playbackState.add(playbackState.value.copyWith(
+      // SINGLE CONTROL (ported from KPFK): show only one play/pause button in the
+      // notification/lock screen — the redundant stop ("X") button was removed.
       controls: [
         if (_player.playing) MediaControl.pause else MediaControl.play,
-        MediaControl.stop, // X button to close player completely
       ],
       systemActions: const {
         MediaAction.play,
         MediaAction.pause,
-        MediaAction.stop, // Add stop action for X button
       },
-      androidCompactActionIndices: const [0, 1],
-      processingState: const {
-        ProcessingState.idle: AudioProcessingState.idle,
-        ProcessingState.loading: AudioProcessingState.loading,
-        ProcessingState.buffering: AudioProcessingState.buffering,
-        ProcessingState.ready: AudioProcessingState.ready,
-        ProcessingState.completed: AudioProcessingState.completed,
-      }[_player.processingState]!,
+      androidCompactActionIndices: const [0],
+      processingState: mappedState,
       playing: _player.playing,
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,
@@ -168,20 +184,33 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     ));
 
     // PACIFICA PATTERN: Simple MediaItem management (SINGLE SOURCE OF TRUTH)
-    // Only show player when we have real metadata or when actively playing
-    final shouldShowPlayer = _player.processingState != ProcessingState.idle &&
+    // Only show player when we have real metadata or when actively playing.
+    // `|| _rebuildingSource` keeps the player shown through setAudioSource()'s
+    // transient idle so the notification never blanks to a placeholder mid-play.
+    final shouldShowPlayer = (_player.processingState != ProcessingState.idle ||
+            _rebuildingSource) &&
         _currentMediaItem != null &&
         (_currentMediaItem!.title != "WBAI 99.5 FM" || _player.playing);
 
-    if (Platform.isIOS && _currentMediaItem != null) {
-      // FIX: On iOS, never push null during state transitions (like setAudioSource
-      // briefly going to idle) because it causes another app's metadata to flash.
-      // Explicit stop() still calls mediaItem.add(null) directly.
-      mediaItem.add(_currentMediaItem);
-    } else {
-      mediaItem.add(shouldShowPlayer ? _currentMediaItem : null);
-    }
+    // The value we would push this cycle (iOS never pushes null; Android gates on
+    // shouldShowPlayer).
+    final MediaItem? effectiveItem =
+        (Platform.isIOS && _currentMediaItem != null)
+            ? _currentMediaItem
+            : (shouldShowPlayer ? _currentMediaItem : null);
 
+    // ANDROID LOCK-SCREEN ART FLICKER FIX: _broadcastState fires in a rapid burst
+    // during play; re-adding an identical MediaItem each time makes audio_service
+    // re-decode + re-parcel the full artwork bitmap, blanking the Samsung lock-screen
+    // image. Only push when the item actually changes (title/artist/art or null↔item).
+    final String pushSignature = effectiveItem == null
+        ? '<null>'
+        : '${effectiveItem.title}|${effectiveItem.artist}|${effectiveItem.artUri}';
+
+    if (pushSignature != _lastPushedMediaSignature) {
+      _lastPushedMediaSignature = pushSignature;
+      mediaItem.add(effectiveItem);
+    }
   }
 
   void _handlePlayerState(PlayerState state) {
@@ -236,11 +265,25 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     LoggerService.audioError('Audio error', error);
   }
 
+  // Samsung/Android: pressing a media button while the stream is loading causes
+  // the native codec to flush with PlatformException(abort). This is a deliberate
+  // platform-level interruption, not a network failure. Reconnecting on abort
+  // triggers a 3-attempt error storm and surfaces a false "Stream playback error".
+  bool _isAbortError(Object error) {
+    final s = error.toString().toLowerCase();
+    return s.contains('abort') || s.contains('connection aborted');
+  }
+
   /// Handles async errors from the playback event stream (e.g. the server
   /// dropping the connection mid-stream). Triggers the gated reconnect loop;
   /// when reconnect has been halted (server confirmed down) we leave it alone.
   void _handleStreamError(Object error, StackTrace stackTrace) {
     LoggerService.audioError('Playback stream error', error);
+    if (_isAbortError(error)) {
+      LoggerService.info(
+          '🎵 Stream aborted by platform (media button during load) — stopping, not reconnecting');
+      return;
+    }
     if (_reconnectEnabled) {
       _reconnect();
     }
@@ -300,6 +343,13 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       LoggerService.audioError('Error during reconnection', e);
       _handleError(e);
 
+      if (_isAbortError(e)) {
+        LoggerService.info(
+            '🎵 Reconnect aborted by platform — halting retry loop');
+        _reconnectEnabled = false;
+        return;
+      }
+
       // Schedule another reconnect attempt with backoff (unless halted).
       final delay = reconnectBackoff(_reconnectAttempts);
       LoggerService.info(
@@ -327,11 +377,40 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         LoggerService.warning('AudioHandler: Failed to gain audio focus');
       }
 
-      // REMOVED: Forced setAudioSource on every play()
-      // Calling setAudioSource destroys the iOS AVPlayerItem, causing the lock
-      // screen to temporarily drop and flash another app's metadata. We will
-      // instead just resume the existing player. If the stream buffer is stale,
-      // it will throw an error and _reconnect() will handle it gracefully.
+      // DEVICE-LOG-PROVEN FIX (ported from KPFK 2026-06-23): On iOS, a fresh
+      // `await setAudioSource()` blocks ~2.6s connecting+buffering a new live
+      // AVPlayerItem. iOS only hands an app the lock-screen Now Playing slot once
+      // it's actually playing audio, so that whole gap shows the previously-used
+      // app (Spotify/Music) = the lock-screen flash.
+      //
+      // So: if the source is still alive (paused, not stopped → processingState
+      // != idle), RESUME IN PLACE — restarts in ms, no gap, no flash. Only
+      // rebuild when the source is gone (idle, after stop / cold start) or on
+      // Android (which relies on a fresh source for guaranteed-live audio).
+      final bool sourceAlive = _player.audioSource != null &&
+          _player.processingState != ProcessingState.idle;
+      if (Platform.isIOS && sourceAlive) {
+        LoggerService.info(
+            '🎯 iOS RESUME-IN-PLACE: source alive (state=${_player.processingState}) - skipping rebuild, no buffering gap, no lock-screen flash');
+      } else {
+        LoggerService.info(
+            '🎯 CACHE FIX: rebuilding AudioSource (idle/cold or Android)');
+        // Guard the transient idle that setAudioSource emits so _broadcastState
+        // keeps the MediaItem and reports `loading` (not idle/STATE_NONE) —
+        // otherwise the Samsung lock screen drops the session and blanks.
+        _rebuildingSource = true;
+        try {
+          final directStreamUrl = await _resolveStreamUrl(_streamUrl);
+          await _player.setAudioSource(
+            AudioSource.uri(
+              Uri.parse(directStreamUrl),
+              tag: _currentMediaItem,
+            ),
+          );
+        } finally {
+          _rebuildingSource = false;
+        }
+      }
 
       await _player.play();
 
@@ -354,7 +433,9 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     } catch (e) {
       LoggerService.audioError('Error playing stream', e);
       _handleError(e);
-      _reconnect();
+      if (!_isAbortError(e)) {
+        _reconnect();
+      }
     }
   }
 
@@ -380,6 +461,18 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  /// Called by audio_service when the app's task is swiped away from recents.
+  /// `android:stopWithTask="true"` alone is unreliable for a foreground media
+  /// service on Android 8.x. A full stop() here tears down playback and clears the
+  /// notification regardless of whether we were playing or paused at close.
+  @override
+  Future<void> onTaskRemoved() async {
+    LoggerService.info(
+        '🎯 onTaskRemoved: app swiped from recents - stopping to clear notification tray');
+    await stop();
+    await super.onTaskRemoved();
+  }
+
   @override
   Future<void> stop() async {
     try {
@@ -396,6 +489,9 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       ));
 
       mediaItem.add(null);
+      // Keep the dedup signature in sync so a later play() is not skipped as
+      // "unchanged" and correctly re-pushes the MediaItem.
+      _lastPushedMediaSignature = '<null>';
 
       playbackState.add(PlaybackState(
         controls: [],
@@ -429,8 +525,8 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Updates the media session state without updating the MediaItem
   /// This ensures just_audio_background won't control the lockscreen
   Future<void> _updateMediaSession(bool playing, MediaItem mediaItem) async {
+    // SINGLE CONTROL (ported from KPFK): only one play/pause button, no stop.
     final controls = [
-      MediaControl.stop,
       playing ? MediaControl.pause : MediaControl.play,
     ];
 
@@ -442,7 +538,7 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           MediaAction.seekForward,
           MediaAction.seekBackward,
         },
-        androidCompactActionIndices: const [0, 1],
+        androidCompactActionIndices: const [0],
         processingState: AudioProcessingState.ready,
         playing: playing,
         updatePosition: _player.position,
@@ -473,6 +569,11 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       title: title,
       artist: artist,
       duration: const Duration(hours: 24),
+      // ANDROID LOCK-SCREEN ART FIX: preserve the last-known real artwork. This
+      // internal builder runs on play() too; dropping artUri here strips the art
+      // from _currentMediaItem and blanks the lock-screen image until the next
+      // metadata poll re-adds it. Carry the existing art forward.
+      artUri: _currentMediaItem?.artUri,
     );
 
     // Let _broadcastState handle the mediaItem.add() call (SINGLE SOURCE OF TRUTH)
@@ -560,7 +661,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           systemActions: const {
             MediaAction.play,
             MediaAction.pause,
-            MediaAction.stop
           },
           androidCompactActionIndices: const [0],
           processingState: AudioProcessingState.idle,
@@ -623,7 +723,16 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> updateMediaItem(MediaItem mediaItem) async {
     _currentMediaItem = mediaItem;
-    this.mediaItem.add(mediaItem);
+
+    // Dedup: skip the push when nothing changed so audio_service doesn't re-decode/
+    // re-parcel the artwork bitmap (Samsung lock-screen flicker). Shares the same
+    // signature as _broadcastState so the two paths stay in sync.
+    final String pushSignature =
+        '${mediaItem.title}|${mediaItem.artist}|${mediaItem.artUri}';
+    if (pushSignature != _lastPushedMediaSignature) {
+      _lastPushedMediaSignature = pushSignature;
+      this.mediaItem.add(mediaItem);
+    }
   }
 
   // ANDROID: deep diagnostics helper - does not change behavior

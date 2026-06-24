@@ -7,7 +7,11 @@ class MetadataService {
   static const String _apiUrl =
       'https://confessor.kpfk.org/playlist/_pl_current_ary.php';
   static const Duration _refreshInterval = Duration(seconds: 30);
-  static const Duration _timeout = Duration(seconds: 5);
+  // Raised from 5s: the metadata API sometimes responds in 6–8s on a cold start.
+  // With a 5s timeout the first fetch FAILED and nothing retried until the 30s
+  // periodic timer — so the home screen sat on "Loading stream information…" for
+  // up to ~30s. A longer timeout lets a slow-but-working response succeed.
+  static const Duration _timeout = Duration(seconds: 12);
 
   final Dio _dio;
   Timer? _refreshTimer;
@@ -19,7 +23,28 @@ class MetadataService {
     _dio.options.receiveTimeout = _timeout;
     _dio.options.headers = {'Accept': 'application/json'};
     _dio.options.responseType = ResponseType.plain;
-    _fetchMetadata();
+    // Retry the FIRST fetch quickly on failure instead of waiting the 30s
+    // periodic interval (the cause of the ~30s "Loading stream information…").
+    _initialFetchWithRetry();
+  }
+
+  /// Cold-start fetch with fast retries. Keeps retrying every few seconds until
+  /// the first metadata arrives, so a slow/failed initial response doesn't leave
+  /// the UI stuck on the placeholder until the 30s periodic timer fires.
+  Future<void> _initialFetchWithRetry() async {
+    for (int attempt = 1; attempt <= 6; attempt++) {
+      try {
+        final metadata = await _fetchFromApi();
+        _updateMetadata(metadata);
+        return; // success — periodic timer (startFetching) takes over
+      } catch (_) {
+        if (_lastMetadata != null) {
+          _metadataController.add(_lastMetadata!);
+          return;
+        }
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
   }
 
   Stream<StreamMetadata> get metadataStream => _metadataController.stream;
