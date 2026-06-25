@@ -1,4 +1,4 @@
-# Define a global platform for your project
+# Uncomment this line to define a global platform for your project
 platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
@@ -29,7 +29,6 @@ flutter_ios_podfile_setup
 
 target 'Runner' do
   use_frameworks!
-  use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
@@ -42,32 +41,6 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
-      config.build_settings['ENABLE_MODULE_VERIFIER'] = 'NO'
-      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
-        '$(inherited)',
-        'PERMISSION_MICROPHONE=1',
-        'PERMISSION_NOTIFICATIONS=1'
-      ]
-    end
-  end
-
-  # Suppress Xcode 15+ duplicate library linker warning (Apple bug FB13229994)
-  installer.pods_project.build_configurations.each do |config|
-    config.build_settings['OTHER_LDFLAGS'] ||= ['$(inherited)']
-    config.build_settings['OTHER_LDFLAGS'] << '-Wl,-no_warn_duplicate_libraries'
-  end
-
-  # Fix: newer CocoaPods omits ${PODS_CONFIGURATION_BUILD_DIR} from FRAMEWORK_SEARCH_PATHS,
-  # causing "Pods_Runner not found" at link time. Add it back to the Runner target xcconfigs.
-  installer.aggregate_targets.each do |aggregate_target|
-    aggregate_target.xcconfigs.each do |config_name, config_file|
-      config_file.attributes['FRAMEWORK_SEARCH_PATHS'] ||= '$(inherited)'
-      unless config_file.attributes['FRAMEWORK_SEARCH_PATHS'].include?('$(PODS_CONFIGURATION_BUILD_DIR)"')
-        config_file.attributes['FRAMEWORK_SEARCH_PATHS'] += ' "$(PODS_CONFIGURATION_BUILD_DIR)"'
-      end
-      xcconfig_path = aggregate_target.xcconfig_path(config_name)
-      config_file.save_as(xcconfig_path)
     end
   end
 end
