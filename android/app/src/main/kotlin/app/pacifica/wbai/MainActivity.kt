@@ -13,7 +13,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterActivity() {
-    
+
     companion object {
         private const val CHANNEL = "app.pacifica.wbai/samsung_media_session"
     }
@@ -39,26 +39,25 @@ class MainActivity: FlutterActivity() {
                     }
                     nm.createNotificationChannel(ch)
                 }
-                android.util.Log.d("SAMSUNG_DEBUG", "AudioService channel badge disabled")
             } catch (e: Exception) {
-                android.util.Log.e("SAMSUNG_DEBUG", "Failed to adjust channel badge: ${e.message}")
+                // Best-effort: ignore if the channel badge cannot be adjusted
             }
         }
     }
-    
+
     private var mediaSessionManager: SamsungMediaSessionManager? = null
     private var methodChannel: MethodChannel? = null
     private var mediaActionReceiver: BroadcastReceiver? = null
-    
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
         // Create method channel for Samsung MediaSession communication
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-        
+
         // Initialize Samsung MediaSession manager
         mediaSessionManager = SamsungMediaSessionManager(this)
-        
+
         // Set up method channel handler
         methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -86,14 +85,14 @@ class MainActivity: FlutterActivity() {
                 }
             }
         }
-        
+
         // Set up broadcast receiver for media actions
         setupMediaActionReceiver()
 
         // Ensure AudioService channel does NOT show app icon badge
         ensureAudioChannelNoBadge()
     }
-    
+
     private fun setupMediaActionReceiver() {
         mediaActionReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -114,35 +113,18 @@ class MainActivity: FlutterActivity() {
                 }
             }
         }
-        
+
         // Register the receiver
         val filter = IntentFilter("wbai_media_action")
         registerReceiver(mediaActionReceiver, filter)
     }
-    
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        
-        // CRITICAL DEBUG: Samsung MediaSession Status
-        android.util.Log.d("SAMSUNG_DEBUG", "🔍 MainActivity.onCreate() called")
-        android.util.Log.d("SAMSUNG_DEBUG", "🔍 mediaSessionManager = $mediaSessionManager")
-        
-        if (mediaSessionManager != null) {
-            android.util.Log.d("SAMSUNG_DEBUG", "🔍 MediaSessionManager exists - READY (not showing notification yet)")
-            android.util.Log.d("SAMSUNG_DEBUG", "🔍 STANDARD BEHAVIOR: Notification will show only when user presses PLAY")
-        } else {
-            android.util.Log.e("SAMSUNG_DEBUG", "🔍 CRITICAL: MediaSessionManager is NULL!")
-        }
-        
-        android.util.Log.d("SAMSUNG_DEBUG", "🔍 MainActivity.onCreate() complete")
-    }
-    
+
     override fun onDestroy() {
         // Notify Flutter/Dart that the app is closing so it can stop & clear the player
         try {
             methodChannel?.invokeMethod("onAppClosing", null)
         } catch (e: Exception) {
-            android.util.Log.e("SAMSUNG_DEBUG", "Failed to notify Dart on app close: ${e.message}")
+            // Ignore: engine may already be torn down
         }
 
         // Clean up resources
@@ -158,9 +140,8 @@ class MainActivity: FlutterActivity() {
         if (isFinishing) {
             try {
                 methodChannel?.invokeMethod("onAppClosing", null)
-                android.util.Log.d("SAMSUNG_DEBUG", "onStop(): Activity finishing -> onAppClosing sent")
             } catch (e: Exception) {
-                android.util.Log.e("SAMSUNG_DEBUG", "onStop notify failed: ${e.message}")
+                // Ignore: engine may already be torn down
             }
         }
     }
