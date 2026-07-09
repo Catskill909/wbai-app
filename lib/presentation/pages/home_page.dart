@@ -141,6 +141,49 @@ class _HomePageState extends State<HomePage> {
     return size.shortestSide < 380; // Phones smaller than iPhone XR
   }
 
+  // Measures the rendered height of the metadata text block, matching the
+  // widgets below line-for-line. Used ONLY to compute how much room the stacked
+  // content needs so the image can shrink as a last resort — never to drive the
+  // image size when there IS room. Gap constants must match the text block.
+  double _measureMetadataHeight({
+    required StreamBlocState state,
+    required Size size,
+    required bool isSmall,
+    required double maxWidth,
+  }) {
+    double measure(String text, TextStyle style, int maxLines) {
+      final tp = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+        maxLines: maxLines,
+        ellipsis: '…',
+      )..layout(maxWidth: maxWidth);
+      return tp.height;
+    }
+
+    if (state.metadata == null) {
+      return 20.0 +
+          measure('Loading stream information...', AppTextStyles.bodyMedium, 2);
+    }
+
+    final cur = state.metadata!.current;
+    double h = isSmall ? 16.0 : 20.0; // gap above title
+    h += measure(cur.showName, AppTextStyles.showTitleForDevice(size), 2);
+    h += 4.0;
+    h += measure(cur.time, AppTextStyles.showTimeForDevice(size), 2);
+    if (cur.hasSongInfo) {
+      h += isSmall ? 8.0 : 10.0;
+      h += measure('Song: ${cur.songTitle} - ${cur.songArtist}',
+          AppTextStyles.bodyLargeForDevice(size), 2);
+    } else if (state.metadata!.next.showName.isNotEmpty) {
+      h += isSmall ? 8.0 : 10.0;
+      h += measure('Next: ${state.metadata!.next.showName}',
+          AppTextStyles.bodyMediumForDevice(size), 2);
+    }
+    return h;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOnline =
@@ -312,33 +355,59 @@ class _HomePageState extends State<HomePage> {
                       final isTab =
                           MediaQuery.of(context).size.shortestSide > 600;
                       final sw = constraints.maxWidth;
-                      // Preferred image side from screen width — only shrinks when
-                      // remaining height after fixed elements is actually smaller.
-                      // A touch larger on bigger screens / tablets.
-                      final desiredSide =
-                          sw * (isSmall ? 0.80 : (isTab ? 0.78 : 0.90));
-                      final bottomPad = isTab ? 100.0 : 80.0;
-                      // Breathing room above the image, scaled up on larger
-                      // screens and tablets (kept tight on small phones).
-                      final imgTop = isSmall ? 8.0 : (isTab ? 40.0 : 24.0);
-                      final playMarginV = isSmall ? 20.0 : 28.0;
-                      final hPad = isSmall ? 12.0 : 16.0;
-                      return Padding(
-                        padding: EdgeInsets.only(bottom: bottomPad),
-                        child: Column(
-                          children: [
-                            SizedBox(height: imgTop),
-                            // Image — Flexible with FlexFit.loose:
-                            // uses desiredSide by default; shrinks only when
-                            // the remaining column height is genuinely smaller.
-                            Flexible(
-                              fit: FlexFit.loose,
-                              child: Center(
-                                child: LayoutBuilder(
-                                  builder: (ctx, imgC) {
-                                    final side =
-                                        desiredSide.clamp(80.0, imgC.maxHeight);
-                                    return GestureDetector(
+                      final double hPad = isSmall ? 12.0 : 16.0;
+                      // Reserves. bottomReserve only clears the floating corner
+                      // donate/alarm buttons (~56px, in the corners, which the
+                      // centered play button never reaches) — keeping it large
+                      // would starve the image via the clamp below.
+                      final double bottomReserve = isSmall ? 40.0 : 48.0;
+                      final double topGap = isSmall ? 12.0 : 16.0;
+                      final double gapAboveButton = isSmall ? 20.0 : 28.0;
+                      final double gapBelowButton = isSmall ? 12.0 : 24.0;
+
+                      // Play button footprint (must match the widget below).
+                      final double buttonSize =
+                          isSmall ? 90.0 : (isTab ? 150.0 : 120.0);
+                      final double buttonMargin = isSmall ? 4.0 : 8.0;
+                      final double buttonBlock = buttonSize + buttonMargin * 2;
+
+                      // WIDTH-first image: the size it WANTS whenever there is
+                      // room (this is the clamp's UPPER CAP, so it can never be
+                      // shrunk by text while space remains). It only shrinks as a
+                      // last resort so the stacked content still fits (no scroll).
+                      final double bigWidthSize =
+                          sw * (isSmall ? 0.8 : (isTab ? 0.72 : 0.85));
+                      final double contentW = sw - hPad * 2;
+                      final double textBlockH = _measureMetadataHeight(
+                        state: state,
+                        size: MediaQuery.of(context).size,
+                        isSmall: isSmall,
+                        maxWidth: contentW,
+                      );
+                      final double viewportH =
+                          constraints.maxHeight - bottomReserve;
+                      final double spaceLeftForImage = viewportH -
+                          topGap -
+                          textBlockH -
+                          gapAboveButton -
+                          buttonBlock -
+                          gapBelowButton;
+                      final double logoSize = spaceLeftForImage
+                          .clamp(isSmall ? 80.0 : 120.0, bigWidthSize)
+                          .toDouble();
+                      return SingleChildScrollView(
+                        padding: EdgeInsets.only(bottom: bottomReserve),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: viewportH),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(height: topGap),
+                              // Station image — WIDTH-based square (logoSize).
+                              SizedBox(
+                                width: logoSize,
+                                height: logoSize,
+                                child: GestureDetector(
                                       onTap: state.metadata != null
                                           ? () {
                                               setState(() {
@@ -347,8 +416,6 @@ class _HomePageState extends State<HomePage> {
                                             }
                                           : null,
                                       child: Container(
-                                        width: side,
-                                        height: side,
                                         decoration: BoxDecoration(
                                           borderRadius:
                                               BorderRadius.circular(20),
@@ -402,11 +469,8 @@ class _HomePageState extends State<HomePage> {
                                                   'Loading stream information...'),
                                         ),
                                       ),
-                                    );
-                                  },
-                                ),
+                                    ),
                               ),
-                            ),
                             // Text section — natural height, always below image
                             Padding(
                               padding: EdgeInsets.symmetric(horizontal: hPad),
@@ -467,11 +531,13 @@ class _HomePageState extends State<HomePage> {
                                 ],
                               ),
                             ),
+                            // Breathing between the metadata and the play button.
+                            SizedBox(height: gapAboveButton),
                             // Playback Control with Loading State
                             Container(
                               alignment: Alignment.center,
                               margin:
-                                  EdgeInsets.symmetric(vertical: playMarginV),
+                                  EdgeInsets.symmetric(vertical: buttonMargin),
                               child: Semantics(
                                 button: true,
                                 enabled: true,
@@ -618,7 +684,11 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               ),
                             ],
+                            // Breathing below the play button before the
+                            // floating donate / sleep-timer strip.
+                            SizedBox(height: gapBelowButton),
                           ],
+                          ),
                         ),
                       );
                     },
