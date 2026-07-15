@@ -27,7 +27,11 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
-// Keystore properties removed - will be configured later for new app
+def keystorePropertiesFile = rootProject.file('key.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
 
 android {
     namespace "app.pacifica.wbai"
@@ -60,7 +64,14 @@ android {
         }
     }
 
-    // Signing configs removed - will be configured later with new keystore
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
 
     // 16KB page size packaging configuration
     packagingOptions {
@@ -71,7 +82,7 @@ android {
     
     buildTypes {
         release {
-            // signingConfig will be added later with new keystore
+            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false  // Explicitly disable resource shrinking for debug builds
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

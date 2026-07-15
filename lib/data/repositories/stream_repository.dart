@@ -51,6 +51,13 @@ class StreamRepository {
   // PHASE 10: guard against re-entrancy while classifying a player error.
   bool _handlingPlayerError = false;
 
+  // True between a play() request and the player actually reaching `playing`.
+  // During this window the source can momentarily report `ready` before its
+  // `playing` flag flips true; without this guard that instant is mapped to
+  // `paused`, which flashes the play icon between the spinner and the pause
+  // icon. While awaiting play we keep it a spinner (buffering) state instead.
+  bool _awaitingPlay = false;
+
   StreamRepository({
     required WBAIAudioHandler audioHandler,
     required MetadataService metadataService,
@@ -80,6 +87,7 @@ class StreamRepository {
       }
 
       // Stop playback and metadata polling
+      _awaitingPlay = false;
       await _audioHandler.stop();
       _metadataService.stopFetching();
 
@@ -170,13 +178,30 @@ class StreamRepository {
             _updateState(StreamState.buffering);
             break;
           case AudioProcessingState.ready:
-            _updateState(isPlaying ? StreamState.playing : StreamState.paused);
+            if (isPlaying) {
+              _awaitingPlay = false;
+              _updateState(StreamState.playing);
+            } else if (_awaitingPlay) {
+              // Startup blip: the source is ready but the player's `playing`
+              // flag hasn't flipped true yet. Stay on a spinner (buffering)
+              // state so the play icon never flashes between the spinner and
+              // the pause icon — we only reach `playing` next.
+              _updateState(StreamState.buffering);
+            } else {
+              _updateState(StreamState.paused);
+            }
             break;
           case AudioProcessingState.completed:
             _updateState(StreamState.stopped);
             break;
           case AudioProcessingState.idle:
-            _updateState(StreamState.initial);
+            // Guard: on Android, setAudioSource briefly emits idle before
+            // loading begins. Without this check that blip flashes the play
+            // button while the spinner is still expected. iOS is unaffected —
+            // it uses resume-in-place and never hits setAudioSource mid-play.
+            if (!_awaitingPlay) {
+              _updateState(StreamState.initial);
+            }
             break;
           case AudioProcessingState.error:
             // PHASE 10: the handler emits this after its bounded reconnect is
@@ -207,6 +232,7 @@ class StreamRepository {
       // UI immediately and let the player connect. The old pre-flight GET added
       // ~2s of fixed latency in front of every play; just_audio surfaces real
       // connection/stream errors which we classify on the failure path below.
+      _awaitingPlay = true;
       _updateState(StreamState.connecting);
 
       // PHASE 5: arm the watchdog in case the connection silently stalls (the
@@ -319,6 +345,10 @@ class StreamRepository {
 
   Future<void> pause({AudioCommandSource? source}) async {
     try {
+      // A deliberate pause ends any in-flight play attempt, so a subsequent
+      // `ready` event should map to `paused` normally again.
+      _awaitingPlay = false;
+
       // Use pause() instead of stop() to keep the audio session active and
       // preserve Now Playing status on iOS. stop() was nuking mediaItem and
       // deactivating the session, which let another app's metadata flash on
@@ -334,6 +364,7 @@ class StreamRepository {
 
   Future<void> stop() async {
     try {
+      _awaitingPlay = false;
       await _audioHandler.stop();
       _updateState(StreamState.stopped);
       _metadataService.stopFetching();
@@ -369,6 +400,15 @@ class StreamRepository {
           newState == StreamState.error ||
           newState == StreamState.initial) {
         _cancelConnectingWatchdog();
+      }
+
+      // A play attempt is over once we actually start playing or it fails
+      // outright. (Deliberately NOT cleared on `initial`, which the iOS source
+      // rebuild churns through mid-play.)
+      if (newState == StreamState.playing ||
+          newState == StreamState.stopped ||
+          newState == StreamState.error) {
+        _awaitingPlay = false;
       }
     }
   }

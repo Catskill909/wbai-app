@@ -96,11 +96,11 @@ class _ArticleWebViewPageState extends State<ArticleWebViewPage> {
                   final rect = box == null
                       ? null
                       : box.localToGlobal(Offset.zero) & box.size;
-                  await Share.share(
-                    '${widget.article.title}\n${widget.article.articleUrl}',
+                  await SharePlus.instance.share(ShareParams(
+                    text: '${widget.article.title}\n${widget.article.articleUrl}',
                     subject: widget.article.title,
                     sharePositionOrigin: rect,
-                  );
+                  ));
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
