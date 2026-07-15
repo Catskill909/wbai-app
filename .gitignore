@@ -40,3 +40,5 @@ Thumbs.db
 
 # Misc
 *.log
+# Flutter-generated, regenerated on every build
+**/android/**/GeneratedPluginRegistrant.java
