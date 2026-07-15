@@ -22,21 +22,26 @@ class ShowInfo extends Equatable {
   });
 
   factory ShowInfo.fromJson(Map<String, dynamic> json) {
-    // Construct full image URL from big_pix filename
-    // big_pix contains just the filename (e.g., "friedman_it_210.jpg")
-    // We need to prepend the base URL from gl_pixurl
+    // WBAI's feed provides sh_photo as a full URL; big_pix (a bare filename
+    // needing the pix base URL prepended) only exists on some Confessor feeds.
     String? imageUrl;
+    final shPhoto = json['sh_photo'];
     final bigPix = json['big_pix'];
-    if (bigPix != null && bigPix.toString().isNotEmpty) {
-      // Use the base URL from the feed's global settings
-      imageUrl = 'https://confessor.kpfk.org/pix/$bigPix';
+    if (shPhoto != null && shPhoto.toString().isNotEmpty) {
+      imageUrl = shPhoto.toString();
+    } else if (bigPix != null && bigPix.toString().isNotEmpty) {
+      imageUrl = 'https://confessor2.wbai.org/pix/$bigPix';
     }
+
+    // The feed names the time fields cur_start/cur_end on the current show
+    // but nxt_start/nxt_end on the next show.
+    final start = json['cur_start'] ?? json['nxt_start'];
+    final end = json['cur_end'] ?? json['nxt_end'];
 
     return ShowInfo(
       showName: StringUtils.decodeHtmlEntities(json['sh_name'] ?? ''),
       host: StringUtils.decodeHtmlEntities(json['sh_djname'] ?? ''),
-      time:
-          '${json['cur_start'] ?? ''}${json['cur_end'] != null ? ' - ${json['cur_end']}' : ''}',
+      time: '${start ?? ''}${end != null ? ' - $end' : ''}',
       songTitle: json['pl_song'] != null
           ? StringUtils.decodeHtmlEntities(json['pl_song'])
           : null,
@@ -93,11 +98,13 @@ class StreamMetadata extends Equatable {
     }
 
     final global = jsonData[0]['global'];
-    final pixUrl = global?['gl_pixurl'] as String? ?? 'https://confessor.kpfk.org/pix';
-    final stapixBig = global?['gl_stapix_big'] as String?;
-    final fallback = stapixBig != null && stapixBig.isNotEmpty
-        ? '$pixUrl/$stapixBig'
-        : null;
+    final pixUrl =
+        global?['gl_pixurl'] as String? ?? 'https://confessor2.wbai.org/pix';
+    // WBAI's feed only has gl_stapix ("WBAI.png"); gl_stapix_big is not present.
+    final stapix =
+        (global?['gl_stapix_big'] as String?) ?? (global?['gl_stapix'] as String?);
+    final fallback =
+        stapix != null && stapix.isNotEmpty ? '$pixUrl/$stapix' : null;
 
     return StreamMetadata(
       previous: ShowInfo.fromJson({}), // We don't use previous show info

@@ -5,7 +5,7 @@ import '../domain/models/stream_metadata.dart';
 
 class MetadataService {
   static const String _apiUrl =
-      'https://confessor.kpfk.org/playlist/_pl_current_ary.php';
+      'https://confessor2.wbai.org/playlist/_pl_current_ary.php';
   static const Duration _refreshInterval = Duration(seconds: 30);
   // Raised from 5s: the metadata API sometimes responds in 6–8s on a cold start.
   // With a 5s timeout the first fetch FAILED and nothing retried until the 30s
