@@ -30,8 +30,7 @@ class StreamConstants {
       'https://www.wbai.org/wp-content/uploads/2020/01/wbai-logo.png';
 
   // Menu URLs
-  static const String scheduleUrl = 'https://wbai.org/schedpage.html';
-  static const String playlistUrl = 'https://www.wbai.org/playlist/';
+  static const String scheduleUrl = 'https://wbai.org/schedule/';
   static const String showArchiveUrl = 'https://www.wbai.org/archive/';
   static const String donateUrl = 'https://docs.pacifica.org/wbai/donate/';
   static const String aboutUrl = 'https://wbai.org/about.html';

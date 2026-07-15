@@ -178,27 +178,6 @@ IconButton(
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.music_note, size: iconSize, color: Colors.black),
-                      title: Text(
-                        'Playlist Archive',
-                        style: AppTextStyles.drawerMenuItemForDevice(size)
-                            .copyWith(
-                          fontSize: isSmallPhone
-                              ? 13.0
-                              : 18.0, // Even smaller font for small devices
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                          horizontal: listTileHorizontalPadding,
-                          vertical: listTileVerticalPadding),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _launchUrl(StreamConstants.playlistUrl);
-                      },
-                    ),
-                    ListTile(
                       leading: Icon(Icons.radio, size: iconSize, color: Colors.black),
                       title: Text(
                         'Show Archive',
