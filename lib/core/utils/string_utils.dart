@@ -1,25 +1,13 @@
+import 'package:html_unescape/html_unescape.dart';
+
 class StringUtils {
-  /// Decodes HTML entities in a string to their corresponding characters.
-  /// For example: "&amp;" becomes "&", "&#039;" becomes "'", etc.
+  static final HtmlUnescape _unescape = HtmlUnescape();
+
+  /// Decodes all HTML entities in a string to their corresponding characters:
+  /// named ("&amp;", "&reg;"), decimal ("&#039;"), and hex ("&#x2019;").
+  /// Runs twice to also handle double-encoded feed data ("&amp;reg;").
   static String decodeHtmlEntities(String input) {
-    return input
-        // Basic HTML entities
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        // Quote entities
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#039;', "'")
-        .replaceAll('&#39;', "'")
-        .replaceAll('&apos;', "'")
-        // Typographic quotes
-        .replaceAll('&rsquo;', "'")
-        .replaceAll('&lsquo;', "'")
-        .replaceAll('&rdquo;', '"')
-        .replaceAll('&ldquo;', '"')
-        // Special characters
-        .replaceAll('&mdash;', '—')
-        .replaceAll('&ndash;', '–')
-        .replaceAll('&hellip;', '…');
+    final once = _unescape.convert(input);
+    return once.contains('&') ? _unescape.convert(once) : once;
   }
 }

@@ -30,6 +30,7 @@ dependencies:
   shared_preferences: ^2.2.2
   url_launcher: ^6.3.1
   share_plus: ^13.2.1
+  html_unescape: ^2.0.0
 
   # Logging
   logging: ^1.2.0
