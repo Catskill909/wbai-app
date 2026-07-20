@@ -17,6 +17,25 @@ class NewsPage extends StatelessWidget {
   }
 }
 
+/// Route that slides the news page in from the right-hand edge.
+Route<void> newsPageRoute() {
+  return PageRouteBuilder<void>(
+    transitionDuration: const Duration(milliseconds: 380),
+    reverseTransitionDuration: const Duration(milliseconds: 300),
+    pageBuilder: (_, __, ___) => const NewsPage(),
+    transitionsBuilder: (_, animation, __, child) {
+      final tween = Tween(
+        begin: const Offset(1, 0),
+        end: Offset.zero,
+      ).chain(CurveTween(curve: Curves.easeOutCubic));
+      return SlideTransition(
+        position: animation.drive(tween),
+        child: child,
+      );
+    },
+  );
+}
+
 class _NewsContent extends StatefulWidget {
   const _NewsContent();
 
@@ -61,10 +80,10 @@ class _NewsContentState extends State<_NewsContent> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
-        // Down chevron in place of the default back arrow — signals "slide down to close"
+        // Right chevron in place of the default back arrow — signals "slide right to close"
         leading: IconButton(
           icon: const Icon(
-            Icons.keyboard_arrow_down_rounded,
+            Icons.keyboard_arrow_right_rounded,
             size: 32,
             color: Colors.black87,
           ),

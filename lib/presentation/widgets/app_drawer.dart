@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/stream_constants.dart';
+import '../../features/news/pages/news_page.dart';
 import '../theme/app_theme.dart';
 import '../theme/font_constants.dart';
 
@@ -161,6 +162,27 @@ IconButton(
                           vertical: listTileVerticalPadding),
                       onTap: () {
                         Navigator.pop(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.article_outlined,
+                          size: iconSize, color: iconColor),
+                      title: Text(
+                        'News',
+                        style: AppTextStyles.drawerMenuItemForDevice(size)
+                            .copyWith(
+                          fontSize: isSmallPhone ? 13.0 : 18.0,
+                          color: iconColor,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                          horizontal: listTileHorizontalPadding,
+                          vertical: listTileVerticalPadding),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, newsPageRoute());
                       },
                     ),
                     ListTile(
