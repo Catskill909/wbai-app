@@ -16,6 +16,8 @@ import '../bloc/sleep_timer_cubit.dart';
 import '../../core/di/service_locator.dart' as di;
 import '../../core/services/logger_service.dart';
 import '../../features/news/pages/news_page.dart';
+import '../bloc/theme_cubit.dart';
+import '../theme/app_theme.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -110,6 +112,11 @@ class _HomePageState extends State<HomePage> {
       s == StreamState.loading ||
       s == StreamState.buffering;
 
+  // Filled-circle glyph rendered at full button size — the Material behind it
+  // is the same color as the page background (white in light, near-black in
+  // dark), so the icon's own fill becomes the visible disc and its cut-out
+  // triangle reveals the matching background as the "hole". Dark mode is the
+  // exact color inverse of light mode at the same size.
   IconData _getPlaybackIcon(StreamState state) {
     switch (state) {
       case StreamState.playing:
@@ -188,6 +195,8 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final isOnline =
         context.select<ConnectivityCubit, bool>((c) => c.state.isOnline);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -201,7 +210,7 @@ class _HomePageState extends State<HomePage> {
                   : (_isMediumTablet(context)
                       ? 38
                       : (_isSmallPhone(context) ? 26 : 30)),
-              color: Colors.black,
+              color: iconColor,
             ),
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
@@ -219,13 +228,26 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             icon: Icon(
+              isDark ? Icons.light_mode : Icons.dark_mode,
+              size: _isLargeTablet(context)
+                  ? 44
+                  : (_isMediumTablet(context)
+                      ? 34
+                      : (_isSmallPhone(context) ? 22 : 26)),
+              color: iconColor,
+            ),
+            tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+            onPressed: () => context.read<ThemeCubit>().toggle(),
+          ),
+          IconButton(
+            icon: Icon(
               Icons.radio,
               size: _isLargeTablet(context)
                   ? 48
                   : (_isMediumTablet(context)
                       ? 38
                       : (_isSmallPhone(context) ? 26 : 30)),
-              color: Colors.black,
+              color: iconColor,
             ),
             onPressed: () => _navigateToSettings(context),
           ),
@@ -420,8 +442,11 @@ class _HomePageState extends State<HomePage> {
                                           borderRadius:
                                               BorderRadius.circular(20),
                                           border: Border.all(
-                                            color: const Color(
-                                                0x1AFFFFFF), // ~10% white
+                                            color: isDark
+                                                ? const Color(
+                                                    0x1AFFFFFF) // ~10% white
+                                                : const Color(
+                                                    0x14000000), // ~8% black
                                             width: isTab ? 1 : 2,
                                           ),
                                           boxShadow: [
@@ -482,7 +507,8 @@ class _HomePageState extends State<HomePage> {
                                     Text(
                                       state.metadata!.current.showName,
                                       style: AppTextStyles.showTitleForDevice(
-                                          MediaQuery.of(context).size),
+                                              MediaQuery.of(context).size)
+                                          .copyWith(color: iconColor),
                                       textAlign: TextAlign.center,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
@@ -491,7 +517,8 @@ class _HomePageState extends State<HomePage> {
                                     Text(
                                       state.metadata!.current.time,
                                       style: AppTextStyles.showTimeForDevice(
-                                          MediaQuery.of(context).size),
+                                              MediaQuery.of(context).size)
+                                          .copyWith(color: iconColor),
                                       textAlign: TextAlign.center,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
@@ -502,7 +529,8 @@ class _HomePageState extends State<HomePage> {
                                       Text(
                                         'Song: ${state.metadata!.current.songTitle} - ${state.metadata!.current.songArtist}',
                                         style: AppTextStyles.bodyLargeForDevice(
-                                            MediaQuery.of(context).size),
+                                                MediaQuery.of(context).size)
+                                            .copyWith(color: iconColor),
                                         textAlign: TextAlign.center,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
@@ -512,9 +540,9 @@ class _HomePageState extends State<HomePage> {
                                       SizedBox(height: isSmall ? 8 : 10),
                                       Text(
                                         'Next: ${state.metadata!.next.showName}',
-                                        style:
-                                            AppTextStyles.bodyMediumForDevice(
-                                                MediaQuery.of(context).size),
+                                        style: AppTextStyles.bodyMediumForDevice(
+                                                MediaQuery.of(context).size)
+                                            .copyWith(color: iconColor),
                                         textAlign: TextAlign.center,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
@@ -524,7 +552,8 @@ class _HomePageState extends State<HomePage> {
                                     const SizedBox(height: 20),
                                     Text(
                                       'Loading stream information...',
-                                      style: AppTextStyles.bodyMedium,
+                                      style: AppTextStyles.bodyMedium
+                                          .copyWith(color: iconColor),
                                       textAlign: TextAlign.center,
                                     ),
                                   ],
@@ -552,7 +581,9 @@ class _HomePageState extends State<HomePage> {
                                     : 'Double tap to ${state.playbackState == StreamState.playing ? 'stop and reset' : 'play'}',
                                 liveRegion: _showLocalLoading,
                                 child: Material(
-                                  color: Colors.white,
+                                  color: isDark
+                                      ? WBAIColors.trueBlack
+                                      : Colors.white,
                                   shape: const CircleBorder(),
                                   elevation: 0,
                                   child: InkWell(
@@ -618,8 +649,10 @@ class _HomePageState extends State<HomePage> {
                                                     CircularProgressIndicator(
                                                   valueColor:
                                                       AlwaysStoppedAnimation<
-                                                              Color>(
-                                                          Colors.black87),
+                                                          Color>(isDark
+                                                              ? Colors.white
+                                                              : Colors
+                                                                  .black87),
                                                   strokeWidth: 4.0,
                                                   strokeCap: StrokeCap.round,
                                                 ),
@@ -630,7 +663,9 @@ class _HomePageState extends State<HomePage> {
                                                 size: isSmall
                                                     ? 90.0
                                                     : (isTab ? 150.0 : 120.0),
-                                                color: Colors.black87,
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : Colors.black87,
                                               ),
                                       ),
                                     ),

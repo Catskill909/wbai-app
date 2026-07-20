@@ -7,6 +7,7 @@ import '../services/connectivity_service.dart';
 import '../services/audio_state_manager.dart';
 import '../../presentation/bloc/connectivity_cubit.dart';
 import '../../presentation/bloc/sleep_timer_cubit.dart';
+import '../../presentation/bloc/theme_cubit.dart';
 import '../../features/news/repository/news_repository.dart';
 import '../../features/news/bloc/news_cubit.dart';
 
@@ -19,6 +20,7 @@ class ServiceRegistry {
   static ConnectivityService? _connectivityService;
   static ConnectivityCubit? _connectivityCubit;
   static SleepTimerCubit? _sleepTimerCubit;
+  static ThemeCubit? _themeCubit;
   static NewsRepository? _newsRepository;
   static NewsCubit? _newsCubit;
 
@@ -30,6 +32,7 @@ class ServiceRegistry {
     if (T == ConnectivityService) return _connectivityService as T;
     if (T == ConnectivityCubit) return _connectivityCubit as T;
     if (T == SleepTimerCubit) return _sleepTimerCubit as T;
+    if (T == ThemeCubit) return _themeCubit as T;
     if (T == NewsRepository) return _newsRepository as T;
     if (T == NewsCubit) return _newsCubit as T;
     throw Exception('Service not registered: $T');
@@ -69,6 +72,12 @@ Future<void> setupServiceLocator() async {
   ServiceRegistry._sleepTimerCubit = SleepTimerCubit(
     ServiceRegistry.get<StreamRepository>()
   );
+
+  // Theme Cubit — load the user's saved light/dark choice (defaults to dark)
+  // BEFORE runApp so the very first frame is already correct.
+  final themeCubit = ThemeCubit();
+  await themeCubit.loadSaved();
+  ServiceRegistry._themeCubit = themeCubit;
 
   // News feature — lazy singleton (fetch only triggered when NewsPage opens)
   ServiceRegistry._newsRepository = NewsRepository();

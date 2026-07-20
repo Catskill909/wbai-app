@@ -16,6 +16,7 @@ import 'services/metadata_service_native.dart';
 import 'services/audio_service/wbai_audio_handler.dart';
 import 'services/samsung_media_session_service.dart';
 import 'presentation/bloc/connectivity_cubit.dart';
+import 'presentation/bloc/theme_cubit.dart';
 import 'presentation/widgets/network_lost_alert.dart';
 
 // Global navigator key (kept if needed later)
@@ -26,11 +27,13 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // Force dark status bar icons for light/white background
+  // Light status bar icons by default (app now opens in dark mode by
+  // default). The AppBar's theme-specific systemOverlayStyle takes over
+  // once the first frame renders and flips this per the user's choice.
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
-    statusBarBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
   ));
 
   // Lock orientation to portrait on all devices (phone and tablet).
@@ -173,32 +176,36 @@ class WBAIRadioApp extends StatelessWidget {
       providers: [
         BlocProvider(create: (_) => createStreamBloc()),
         BlocProvider(create: (_) => getIt<ConnectivityCubit>()..initialize()),
+        BlocProvider(create: (_) => getIt<ThemeCubit>()),
       ],
-      child: MaterialApp(
-        title: StreamConstants.stationName,
-        theme: AppTheme.darkTheme,
-        themeMode: ThemeMode.dark,
-        debugShowCheckedModeBanner: false,
-        navigatorKey: appNavigatorKey,
-        home: const HomePage(),
-        builder: (context, child) {
-          final connState = context.watch<ConnectivityCubit>().state;
-          // Kick an explicit first check on first frame
-          if (connState.firstRun) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (context.mounted) {
-                context.read<ConnectivityCubit>().checkNow();
-              }
-            });
-          }
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              child ?? const SizedBox.shrink(),
-              if (!connState.isOnline) const NetworkLostAlert(),
-            ],
-          );
-        },
+      child: BlocBuilder<ThemeCubit, ThemeMode>(
+        builder: (context, themeMode) => MaterialApp(
+          title: StreamConstants.stationName,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeMode,
+          debugShowCheckedModeBanner: false,
+          navigatorKey: appNavigatorKey,
+          home: const HomePage(),
+          builder: (context, child) {
+            final connState = context.watch<ConnectivityCubit>().state;
+            // Kick an explicit first check on first frame
+            if (connState.firstRun) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) {
+                  context.read<ConnectivityCubit>().checkNow();
+                }
+              });
+            }
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                child ?? const SizedBox.shrink(),
+                if (!connState.isOnline) const NetworkLostAlert(),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

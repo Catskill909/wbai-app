@@ -81,11 +81,14 @@ flutter_launcher_icons:
 # Splash Screen Configuration - DEVICE OPTIMIZED SOLUTION
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/icons/splash_icon_fixed.png
+  image: assets/icons/splash_icon_new.png
   android_gravity: center
 
+  # Android 12+ masks the icon into a circle: with icon_background_color set the
+  # canvas is 960x960 and only the inner 640px circle survives. splash_icon_android12.png
+  # is the logo scaled to 512px on a 960px canvas so nothing gets clipped.
   android_12:
-    image: assets/icons/splash_icon_fixed.png
+    image: assets/icons/splash_icon_android12.png
     icon_background_color: "#FFFFFF"
 
   web: false

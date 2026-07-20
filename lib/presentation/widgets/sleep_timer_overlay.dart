@@ -56,6 +56,10 @@ class _SleepTimerViewState extends State<_SleepTimerView>
   @override
   Widget build(BuildContext context) {
     const accent = WBAIColors.blue;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final primaryText = isDark ? Colors.white : Colors.black87;
+    final closeIconColor = isDark ? Colors.white54 : Colors.grey.shade500;
     return Material(
       color: Colors.black.withValues(alpha: 0.6),
       child: Center(
@@ -67,7 +71,7 @@ class _SleepTimerViewState extends State<_SleepTimerView>
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
@@ -103,18 +107,18 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                           const Icon(Icons.bedtime_outlined,
                               color: accent, size: 22),
                           const SizedBox(width: 8),
-                          const Text(
+                          Text(
                             'Sleep Timer',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: Colors.black87,
+                              color: primaryText,
                             ),
                           ),
                           const Spacer(),
                           IconButton(
                             icon: Icon(Icons.close,
-                                color: Colors.grey.shade500, size: 20),
+                                color: closeIconColor, size: 20),
                             onPressed: () => Navigator.of(context).maybePop(),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -124,7 +128,10 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                       const SizedBox(height: 20),
                       // Timer ring
                       _TimerRing(
-                          remaining: remaining, total: total, accent: accent),
+                          remaining: remaining,
+                          total: total,
+                          accent: accent,
+                          isDark: isDark),
                       const SizedBox(height: 24),
                       // Preset buttons
                       _PresetRow(
@@ -133,6 +140,7 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                         currentMinutes: total.inMinutes,
                         disabled: isRunning || isPaused,
                         accent: accent,
+                        isDark: isDark,
                       ),
                       const SizedBox(height: 16),
                       // Slider
@@ -143,6 +151,7 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                             .setMinutes(v.round()),
                         disabled: isRunning || isPaused,
                         accent: accent,
+                        isDark: isDark,
                       ),
                       const SizedBox(height: 20),
                       // Action buttons
@@ -213,9 +222,11 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                               child: isBeforeStart
                                   ? OutlinedButton(
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.black87,
+                                        foregroundColor: primaryText,
                                         side: BorderSide(
-                                            color: Colors.grey.shade300),
+                                            color: isDark
+                                                ? Colors.white24
+                                                : Colors.grey.shade300),
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
                                               BorderRadius.circular(12),
@@ -229,9 +240,13 @@ class _SleepTimerViewState extends State<_SleepTimerView>
                                     )
                                   : OutlinedButton(
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.red.shade400,
+                                        foregroundColor: isDark
+                                            ? Colors.red.shade200
+                                            : Colors.red.shade400,
                                         side: BorderSide(
-                                            color: Colors.red.shade200),
+                                            color: isDark
+                                                ? Colors.red.shade300
+                                                : Colors.red.shade200),
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
                                               BorderRadius.circular(12),
@@ -268,16 +283,21 @@ class _PresetRow extends StatelessWidget {
   final int currentMinutes;
   final bool disabled;
   final Color accent;
+  final bool isDark;
   const _PresetRow({
     required this.onSelect,
     required this.currentMinutes,
     required this.disabled,
     required this.accent,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
     const options = [15, 30, 60];
+    final unselectedBg = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade100;
+    final unselectedBorder = isDark ? Colors.white24 : Colors.grey.shade300;
+    final unselectedText = isDark ? Colors.white : Colors.black87;
     return Row(
       children: [
         for (int i = 0; i < options.length; i++) ...[
@@ -288,14 +308,12 @@ class _PresetRow extends StatelessWidget {
                 duration: const Duration(milliseconds: 200),
                 height: 44,
                 decoration: BoxDecoration(
-                  color: currentMinutes == options[i]
-                      ? accent
-                      : Colors.grey.shade100,
+                  color: currentMinutes == options[i] ? accent : unselectedBg,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: currentMinutes == options[i]
                         ? accent
-                        : Colors.grey.shade300,
+                        : unselectedBorder,
                   ),
                 ),
                 alignment: Alignment.center,
@@ -304,7 +322,7 @@ class _PresetRow extends StatelessWidget {
                   style: TextStyle(
                     color: currentMinutes == options[i]
                         ? Colors.white
-                        : Colors.black87,
+                        : unselectedText,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -324,28 +342,30 @@ class _MinutesSlider extends StatelessWidget {
   final ValueChanged<double>? onChanged;
   final bool disabled;
   final Color accent;
+  final bool isDark;
   const _MinutesSlider({
     required this.value,
     required this.onChanged,
     required this.disabled,
     required this.accent,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
+    final labelColor = isDark ? Colors.white60 : Colors.grey.shade600;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(Icons.access_time_outlined,
-                size: 16, color: Colors.grey.shade600),
+            Icon(Icons.access_time_outlined, size: 16, color: labelColor),
             const SizedBox(width: 6),
             Text(
               '${value.round()} minutes',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey.shade600,
+                color: labelColor,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -355,7 +375,7 @@ class _MinutesSlider extends StatelessWidget {
           data: SliderThemeData(
             trackHeight: 4,
             activeTrackColor: accent,
-            inactiveTrackColor: Colors.grey.shade200,
+            inactiveTrackColor: isDark ? Colors.white12 : Colors.grey.shade200,
             thumbColor: accent,
             overlayColor: accent.withValues(alpha: 0.15),
             thumbShape:
@@ -378,8 +398,13 @@ class _TimerRing extends StatelessWidget {
   final Duration remaining;
   final Duration total;
   final Color accent;
-  const _TimerRing(
-      {required this.remaining, required this.total, required this.accent});
+  final bool isDark;
+  const _TimerRing({
+    required this.remaining,
+    required this.total,
+    required this.accent,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -390,6 +415,9 @@ class _TimerRing extends StatelessWidget {
     final h = remaining.inHours;
     final m = remaining.inMinutes % 60;
     final s = remaining.inSeconds % 60;
+    final ringBg = isDark ? Colors.white12 : Colors.grey.shade200;
+    final primaryText = isDark ? Colors.white : Colors.black87;
+    final secondaryText = isDark ? Colors.white60 : Colors.grey.shade500;
 
     return SizedBox(
       width: 160,
@@ -404,7 +432,7 @@ class _TimerRing extends StatelessWidget {
               value: progress.isNaN ? 0 : progress,
               strokeWidth: 10,
               color: accent,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: ringBg,
               strokeCap: StrokeCap.round,
             ),
           ),
@@ -413,10 +441,10 @@ class _TimerRing extends StatelessWidget {
             children: [
               Text(
                 '$h:${two(m)}:${two(s)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: primaryText,
                   letterSpacing: 1,
                 ),
               ),
@@ -424,7 +452,7 @@ class _TimerRing extends StatelessWidget {
                 'remaining',
                 style: TextStyle(
                   fontSize: 11,
-                  color: Colors.grey.shade500,
+                  color: secondaryText,
                   fontWeight: FontWeight.w500,
                 ),
               ),

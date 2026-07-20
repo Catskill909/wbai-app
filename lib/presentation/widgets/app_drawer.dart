@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/stream_constants.dart';
+import '../theme/app_theme.dart';
 import '../theme/font_constants.dart';
 
 const _blueskySvg = '''
@@ -29,7 +30,7 @@ class AppDrawer extends StatelessWidget {
     }
   }
 
-  Widget _buildSocialIcons(BuildContext context) {
+  Widget _buildSocialIcons(BuildContext context, Color iconColor) {
     final size = MediaQuery.of(context).size;
     final isSmallPhone = size.shortestSide < 380;
     final iconSize =
@@ -45,17 +46,17 @@ class AppDrawer extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           IconButton(
-            icon: Icon(Icons.facebook, size: iconSize, color: Colors.black),
+            icon: Icon(Icons.facebook, size: iconSize, color: iconColor),
             tooltip: 'Facebook',
             onPressed: () => _launchUrl(StreamConstants.facebookUrl),
           ),
           IconButton(
-            icon: Icon(Icons.camera_alt, size: iconSize, color: Colors.black),
+            icon: Icon(Icons.camera_alt, size: iconSize, color: iconColor),
             tooltip: 'Instagram',
             onPressed: () => _launchUrl(StreamConstants.instagramUrl),
           ),
 IconButton(
-            icon: Icon(Icons.message, size: iconSize, color: Colors.black),
+            icon: Icon(Icons.message, size: iconSize, color: iconColor),
             tooltip: 'Twitter',
             onPressed: () => _launchUrl(StreamConstants.twitterUrl),
           ),
@@ -64,13 +65,13 @@ IconButton(
               _blueskySvg,
               width: iconSize,
               height: iconSize,
-              colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
+              colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
             ),
             tooltip: 'Bluesky',
             onPressed: () => _launchUrl(StreamConstants.blueskyUrl),
           ),
           IconButton(
-            icon: Icon(Icons.email, size: iconSize, color: Colors.black),
+            icon: Icon(Icons.email, size: iconSize, color: iconColor),
             tooltip: 'Email Us',
             onPressed: _launchEmail,
           ),
@@ -83,6 +84,10 @@ IconButton(
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isSmallPhone = size.shortestSide < 380;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black;
+    final headerBg = isDark ? Colors.black : Colors.white;
+    final dividerColor = isDark ? Colors.white24 : Colors.black26;
     final headerPadding =
         isSmallPhone ? 4.0 : 16.0; // Much smaller padding for small devices
     final iconSize = isSmallPhone ? 20.0 : 28.0;
@@ -91,6 +96,7 @@ IconButton(
         isSmallPhone ? 1.0 : 2.0; // Drastically reduce vertical spacing
 
     return Drawer(
+      backgroundColor: isDark ? WBAIColors.trueBlack : Colors.white,
       child: Container(
         decoration: BoxDecoration(
           border: Border(
@@ -106,8 +112,8 @@ IconButton(
               height: isSmallPhone
                   ? 60.0
                   : null, // Even smaller header for small devices
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: headerBg,
               ),
               child: isSmallPhone
                   ? Center(
@@ -118,8 +124,8 @@ IconButton(
                       ),
                     )
                   : DrawerHeader(
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: headerBg,
                       ),
                       child: Center(
                         child: Padding(
@@ -137,7 +143,7 @@ IconButton(
                 child: Column(
                   children: [
                     ListTile(
-                      leading: Icon(Icons.home, size: iconSize, color: Colors.black),
+                      leading: Icon(Icons.home, size: iconSize, color: iconColor),
                       title: Text(
                         'Home',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -145,6 +151,7 @@ IconButton(
                           fontSize: isSmallPhone
                               ? 13.0
                               : 18.0, // Even smaller font for small devices
+                          color: iconColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -157,7 +164,7 @@ IconButton(
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.calendar_month, size: iconSize, color: Colors.black),
+                      leading: Icon(Icons.calendar_month, size: iconSize, color: iconColor),
                       title: Text(
                         'Program Schedule',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -165,6 +172,7 @@ IconButton(
                           fontSize: isSmallPhone
                               ? 13.0
                               : 18.0, // Even smaller font for small devices
+                          color: iconColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -178,7 +186,7 @@ IconButton(
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.radio, size: iconSize, color: Colors.black),
+                      leading: Icon(Icons.radio, size: iconSize, color: iconColor),
                       title: Text(
                         'Show Archive',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -186,6 +194,7 @@ IconButton(
                           fontSize: isSmallPhone
                               ? 13.0
                               : 18.0, // Even smaller font for small devices
+                          color: iconColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -199,7 +208,7 @@ IconButton(
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.attach_money, size: iconSize, color: Colors.black),
+                      leading: Icon(Icons.attach_money, size: iconSize, color: iconColor),
                       title: Text(
                         'Donate',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -207,6 +216,7 @@ IconButton(
                           fontSize: isSmallPhone
                               ? 13.0
                               : 18.0, // Even smaller font for small devices
+                          color: iconColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -220,7 +230,7 @@ IconButton(
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.language, size: iconSize, color: Colors.black),
+                      leading: Icon(Icons.language, size: iconSize, color: iconColor),
                       title: Text(
                         'WBAI Website',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -228,6 +238,7 @@ IconButton(
                           fontSize: isSmallPhone
                               ? 13.0
                               : 18.0, // Even smaller font for small devices
+                          color: iconColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -241,7 +252,7 @@ IconButton(
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.info, size: iconSize, color: Colors.black),
+                      leading: Icon(Icons.info, size: iconSize, color: iconColor),
                       title: Text(
                         'About Pacifica',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -249,6 +260,7 @@ IconButton(
                           fontSize: isSmallPhone
                               ? 13.0
                               : 18.0, // Even smaller font for small devices
+                          color: iconColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -262,7 +274,7 @@ IconButton(
                       },
                     ),
                     ListTile(
-                      leading: Icon(Icons.privacy_tip, size: iconSize, color: Colors.black),
+                      leading: Icon(Icons.privacy_tip, size: iconSize, color: iconColor),
                       title: Text(
                         'Privacy Policy',
                         style: AppTextStyles.drawerMenuItemForDevice(size)
@@ -270,6 +282,7 @@ IconButton(
                           fontSize: isSmallPhone
                               ? 13.0
                               : 18.0, // Even smaller font for small devices
+                          color: iconColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -287,11 +300,11 @@ IconButton(
               ),
             ),
             Container(
-              color: Colors.white,
+              color: headerBg,
               child: Column(
                 children: [
-                  const Divider(height: 1, color: Colors.black26),
-                  _buildSocialIcons(context),
+                  Divider(height: 1, color: dividerColor),
+                  _buildSocialIcons(context, iconColor),
                   SizedBox(
                       height: isSmallPhone
                           ? 4.0
