@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resource-shrinker keeps for the media-tray notification.
+
+  shrinkResources (enabled in release) can't see either of these statically:
+
+  - ic_notification is named as the STRING "drawable/ic_notification" in
+    AudioServiceConfig (lib/main.dart) and resolved via Resources.getIdentifier()
+    at runtime, so nothing in code or XML references R.drawable.ic_notification
+    on a live path.
+  - The TextAppearance_Compat_Notification* / Widget_Compat_Notification* styles
+    are referenced from NotificationCompat's RemoteViews layouts, also at runtime.
+
+  Without these keeps the shrinker marks them reachable=false, the tray player
+  silently fails to post on Android, and nothing logs an error.
+-->
+<resources
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_notification,
+                @style/TextAppearance_Compat_Notification*,
+                @style/Widget_Compat_Notification*,
+                @integer/status_bar_notification_info_maxnum,
+                @string/status_bar_notification_info_overflow"/>

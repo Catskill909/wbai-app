@@ -19,7 +19,11 @@ pluginManagement {
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
     id "com.android.application" version "8.12.2" apply false
-    id "org.jetbrains.kotlin.android" version "2.1.0" apply false
+    // The app module no longer applies kotlin-android (it uses AGP built-in
+    // Kotlin), but KGP must stay resolvable here: Flutter plugin modules such
+    // as share_plus and purchases_flutter still apply kotlin-android in their
+    // own build.gradle. Removing this breaks the build at configuration time.
+    id "org.jetbrains.kotlin.android" version "2.2.20" apply false
     id "dev.flutter.flutter-gradle-plugin" version "1.0.0" apply false
 }
 

@@ -1,6 +1,5 @@
 plugins {
     id "com.android.application"
-    id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -36,15 +35,13 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace "app.pacifica.wbai"
     compileSdk 36  // Updated to 36 for plugin compatibility and latest Android features
-    // NDK version will use Flutter's default (supports 16KB page sizes)
+    // Pinned to the highest NDK any plugin asks for (the jni package needs
+    // 28.2); NDKs are backward compatible, and this still supports 16KB pages.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = '11'
     }
 
     sourceSets {
@@ -94,13 +91,19 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+    }
+}
+
 flutter {
     source '../..'
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    
+    // kotlin-stdlib is contributed automatically by built-in Kotlin
+
     // CRITICAL: Samsung MediaSession dependencies (AndroidX compatible)
     implementation 'androidx.media:media:1.6.0'
     implementation 'androidx.core:core:1.10.1'
