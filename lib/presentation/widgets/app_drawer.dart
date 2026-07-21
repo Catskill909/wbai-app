@@ -110,18 +110,27 @@ IconButton(
         child: Column(
           children: [
             Container(
-              height: isSmallPhone
-                  ? 60.0
-                  : null, // Even smaller header for small devices
+              // Paint the header background edge-to-edge, including behind
+              // the status bar, so the top strip is never transparent.
               decoration: BoxDecoration(
                 color: headerBg,
               ),
               child: isSmallPhone
-                  ? Center(
-                      child: Image.asset(
-                        'assets/images/header.png',
-                        fit: BoxFit.contain,
-                        height: 40.0, // Much smaller image for small devices
+                  ? Padding(
+                      // Push the logo below the status bar on small phones;
+                      // the DrawerHeader branch handles this itself.
+                      padding: EdgeInsets.only(
+                          top: MediaQuery.of(context).padding.top),
+                      child: SizedBox(
+                        height: 60.0,
+                        child: Center(
+                          child: Image.asset(
+                            'assets/images/header.png',
+                            fit: BoxFit.contain,
+                            height:
+                                40.0, // Much smaller image for small devices
+                          ),
+                        ),
                       ),
                     )
                   : DrawerHeader(
