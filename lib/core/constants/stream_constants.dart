@@ -34,8 +34,7 @@ class StreamConstants {
   static const String showArchiveUrl = 'https://www.wbai.org/archive/';
   static const String donateUrl = 'https://docs.pacifica.org/wbai/donate/';
   static const String aboutUrl = 'https://wbai.org/about.html';
-  static const String pacificaUrl =
-      'https://pacificanetwork.org/about-pacifica-foundation/pacifica-foundation/';
+  static const String pacificaUrl = 'https://www.pacifica.org/about_mission.php';
   static const String privacyPolicyUrl =
       'https://docs.pacifica.org/wbai/wbai-privacy.php';
 
