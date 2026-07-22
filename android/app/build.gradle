@@ -51,7 +51,7 @@ android {
     defaultConfig {
         applicationId "app.pacifica.wbai"
         minSdkVersion flutter.minSdkVersion
-        targetSdkVersion 35  // API 35 (Android 15) - Required for Play Store
+        targetSdkVersion 36  // API 36 (Android 16) - Required for Play Store
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         

@@ -25,6 +25,28 @@ subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
 
+// audio_session and just_audio (pure-Java plugin modules, no Kotlin source)
+// don't declare their own compileOptions and fall back to AGP's Java 8
+// default, which javac flags as obsolete under JDK 17+. Other plugins
+// (share_plus, flutter_inappwebview_android, etc.) already set their own
+// consistent Java/Kotlin versions, so this is scoped to just the offenders
+// rather than applied to every subproject.
+def legacyJavaModules = ['audio_session', 'just_audio']
+subprojects {
+    if (project.name in legacyJavaModules) {
+        afterEvaluate { project ->
+            if (project.hasProperty('android')) {
+                project.android {
+                    compileOptions {
+                        sourceCompatibility JavaVersion.VERSION_11
+                        targetCompatibility JavaVersion.VERSION_11
+                    }
+                }
+            }
+        }
+    }
+}
+
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
