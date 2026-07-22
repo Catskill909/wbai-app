@@ -7,7 +7,6 @@ import '../../core/constants/stream_constants.dart';
 import '../../core/services/logger_service.dart';
 import '../../core/utils/m3u_parser.dart';
 import '../../data/models/stream_metadata.dart';
-import '../samsung_media_session_service.dart';
 
 /// Handles all audio-related operations including background playback
 /// Modified to use a permanent dummy MediaItem to prevent just_audio_background
@@ -416,17 +415,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       _updateMediaSession(_player.playing, _currentMediaItem!);
 
-      await SamsungMediaSessionService.updatePlaybackState(true);
-
-      if (_currentMetadata != null) {
-        await SamsungMediaSessionService.updateMetadata(
-          _currentMetadata!.currentSong,
-          _currentMetadata!.artist,
-        );
-      }
-
-      await SamsungMediaSessionService.showNotification();
-
       if (Platform.isAndroid) {
         _debugDumpAndroidState('play:afterUpdateSession');
       }
@@ -452,9 +440,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // await session.setActive(false);
 
       _updateMediaSession(_player.playing, _currentMediaItem!);
-
-      await SamsungMediaSessionService.updatePlaybackState(false);
-      await SamsungMediaSessionService.hideNotification();
     } catch (e) {
       LoggerService.audioError('Error pausing stream', e);
       _handleError(e);
@@ -480,8 +465,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       final session = await AudioSession.instance;
       await session.setActive(false);
-
-      await SamsungMediaSessionService.hideNotification();
 
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.idle,
@@ -577,7 +560,6 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
 
     // Let _broadcastState handle the mediaItem.add() call (SINGLE SOURCE OF TRUTH)
-    await SamsungMediaSessionService.updateMetadata(title, artist);
   }
 
   /// Updates only the playback state without changing metadata

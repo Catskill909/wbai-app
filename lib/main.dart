@@ -14,7 +14,6 @@ import 'presentation/pages/home_page.dart';
 import 'presentation/theme/app_theme.dart';
 import 'services/metadata_service_native.dart';
 import 'services/audio_service/wbai_audio_handler.dart';
-import 'services/samsung_media_session_service.dart';
 import 'presentation/bloc/connectivity_cubit.dart';
 import 'presentation/bloc/theme_cubit.dart';
 import 'presentation/widgets/network_lost_alert.dart';
@@ -89,16 +88,6 @@ Future<void> main() async {
 
     // ANDROID-ONLY: register app close observer (detached only)
     if (Platform.isAndroid) {
-      // Initialize Samsung MediaSession channel so native callbacks (onAppClosing, media actions)
-      // can be received by Dart side.
-      try {
-        await SamsungMediaSessionService.initialize();
-        LoggerService.info(
-            '🤖 SAMSUNG: MediaSession service initialized in main()');
-      } catch (e) {
-        LoggerService.error(
-            '🤖 SAMSUNG: Failed to initialize Samsung service in main(): $e');
-      }
       WidgetsBinding.instance.addObserver(_AndroidAppCloseObserver());
       LoggerService.info(
           '🤖 Android app-close observer registered (detached only)');
