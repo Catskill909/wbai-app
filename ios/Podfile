@@ -41,6 +41,18 @@ end
 post_install do |installer|
   # Silence Xcode's "Update to recommended settings" nag on the Pods project
   installer.pods_project.root_object.attributes['LastUpgradeCheck'] = '2660'
+
+  # flutter_inappwebview ships WebView.storyboard pinned to an older iOS version
+  # than our deployment target, which Xcode warns about on archive. Drop the pin
+  # so it inherits the project target. Re-applied here because the file lives in
+  # the shared pub-cache and is restored by `pub cache repair` / version bumps.
+  Dir.glob(File.join(__dir__, '.symlinks', 'plugins', 'flutter_inappwebview_ios', 'ios', '**', '*.storyboard')).each do |storyboard|
+    xml = File.read(storyboard)
+    patched = xml.sub(/<deployment version="\d+" identifier="iOS"\/>/, '<deployment identifier="iOS"/>')
+    next if patched == xml
+    File.write(storyboard, patched)
+    puts "Patched storyboard deployment target: #{File.basename(storyboard)}"
+  end
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|

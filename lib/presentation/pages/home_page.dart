@@ -13,6 +13,7 @@ import '../bloc/connectivity_cubit.dart';
 import '../widgets/donate_webview_sheet.dart';
 import '../widgets/sleep_timer_overlay.dart';
 import '../bloc/sleep_timer_cubit.dart';
+import '../../core/constants/stream_constants.dart';
 import '../../core/di/service_locator.dart' as di;
 import '../../core/services/logger_service.dart';
 import '../bloc/theme_cubit.dart';
@@ -211,11 +212,13 @@ class _HomePageState extends State<HomePage> {
                       : (_isSmallPhone(context) ? 26 : 30)),
               color: iconColor,
             ),
+            tooltip: 'Open menu',
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
         title: Image.asset(
           'assets/images/header.png',
+          semanticLabel: StreamConstants.stationName,
           height: _isLargeTablet(context)
               ? 70
               : (_isMediumTablet(context)
@@ -248,6 +251,7 @@ class _HomePageState extends State<HomePage> {
                       : (_isSmallPhone(context) ? 26 : 30)),
               color: iconColor,
             ),
+            tooltip: 'Pacifica stations',
             onPressed: () => _navigateToSettings(context),
           ),
         ],
@@ -277,7 +281,8 @@ class _HomePageState extends State<HomePage> {
               } else if (s == StreamState.playing ||
                   s == StreamState.error ||
                   _sawPlaybackProgress) {
-                LoggerService.debug('🔄 SPINNER: Clearing spinner - state is $s');
+                LoggerService.debug(
+                    '🔄 SPINNER: Clearing spinner - state is $s');
                 setState(() {
                   _showLocalLoading = false;
                 });
@@ -428,300 +433,311 @@ class _HomePageState extends State<HomePage> {
                               SizedBox(
                                 width: logoSize,
                                 height: logoSize,
-                                child: GestureDetector(
-                                      onTap: state.metadata != null
-                                          ? () {
-                                              setState(() {
-                                                _showInfoModal = true;
-                                              });
-                                            }
-                                          : null,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          border: Border.all(
-                                            color: isDark
-                                                ? const Color(
-                                                    0x1AFFFFFF) // ~10% white
-                                                : const Color(
-                                                    0x14000000), // ~8% black
-                                            width: isTab ? 1 : 2,
+                                child: Semantics(
+                                  button: state.metadata != null,
+                                  enabled: state.metadata != null,
+                                  label: 'Current show artwork',
+                                  hint: state.metadata != null
+                                      ? 'Double tap for show details'
+                                      : null,
+                                  child: GestureDetector(
+                                    onTap: state.metadata != null
+                                        ? () {
+                                            setState(() {
+                                              _showInfoModal = true;
+                                            });
+                                          }
+                                        : null,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: isDark
+                                              ? const Color(
+                                                  0x1AFFFFFF) // ~10% white
+                                              : const Color(
+                                                  0x14000000), // ~8% black
+                                          width: isTab ? 1 : 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                                red: 0,
+                                                green: 0,
+                                                blue: 0,
+                                                alpha: 77),
+                                            blurRadius: 8,
+                                            offset: const Offset(2, 2),
                                           ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                  red: 0,
-                                                  green: 0,
-                                                  blue: 0,
-                                                  alpha: 77),
-                                              blurRadius: 8,
-                                              offset: const Offset(2, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          child: state.metadata?.current
-                                                      .hasHostImage ==
-                                                  true
-                                              ? Image.network(
-                                                  state.metadata!.current
-                                                      .hostImage!,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error,
-                                                      stackTrace) {
-                                                    final fallback = state
-                                                        .metadata!
-                                                        .stationFallbackImage;
-                                                    if (fallback != null) {
-                                                      return Image.network(
-                                                        fallback,
-                                                        fit: BoxFit.cover,
-                                                        errorBuilder: (ctx, e,
-                                                                st) =>
-                                                            _buildLoadingContainer(
-                                                                'Error loading image'),
-                                                      );
-                                                    }
-                                                    return _buildLoadingContainer(
-                                                        'Error loading image');
-                                                  },
-                                                )
-                                              : _buildLoadingContainer(
-                                                  'Loading stream information...'),
-                                        ),
+                                        ],
                                       ),
-                                    ),
-                              ),
-                            // Text section — natural height, always below image
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: hPad),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (state.metadata != null) ...[
-                                    SizedBox(height: isSmall ? 16 : 20),
-                                    Text(
-                                      state.metadata!.current.showName,
-                                      style: AppTextStyles.showTitleForDevice(
-                                              MediaQuery.of(context).size)
-                                          .copyWith(color: iconColor),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      state.metadata!.current.time,
-                                      style: AppTextStyles.showTimeForDevice(
-                                              MediaQuery.of(context).size)
-                                          .copyWith(color: iconColor),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    if (state
-                                        .metadata!.current.hasSongInfo) ...[
-                                      SizedBox(height: isSmall ? 8 : 10),
-                                      Text(
-                                        'Song: ${state.metadata!.current.songTitle} - ${state.metadata!.current.songArtist}',
-                                        style: AppTextStyles.bodyLargeForDevice(
-                                                MediaQuery.of(context).size)
-                                            .copyWith(color: iconColor),
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ] else if (state.metadata!.next.showName
-                                        .isNotEmpty) ...[
-                                      SizedBox(height: isSmall ? 8 : 10),
-                                      Text(
-                                        'Next: ${state.metadata!.next.showName}',
-                                        style: AppTextStyles.bodyMediumForDevice(
-                                                MediaQuery.of(context).size)
-                                            .copyWith(color: iconColor),
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ] else ...[
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      'Loading stream information...',
-                                      style: AppTextStyles.bodyMedium
-                                          .copyWith(color: iconColor),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            // Breathing between the metadata and the play button.
-                            SizedBox(height: gapAboveButton),
-                            // Playback Control with Loading State
-                            Container(
-                              alignment: Alignment.center,
-                              margin:
-                                  EdgeInsets.symmetric(vertical: buttonMargin),
-                              child: Semantics(
-                                button: true,
-                                enabled: true,
-                                label: _showLocalLoading
-                                    ? 'Loading audio'
-                                    : (state.playbackState ==
-                                            StreamState.playing
-                                        ? 'Stop stream and reset'
-                                        : 'Play stream'),
-                                hint: _showLocalLoading
-                                    ? null
-                                    : 'Double tap to ${state.playbackState == StreamState.playing ? 'stop and reset' : 'play'}',
-                                liveRegion: _showLocalLoading,
-                                child: Material(
-                                  color: isDark
-                                      ? WBAIColors.trueBlack
-                                      : Colors.white,
-                                  shape: const CircleBorder(),
-                                  elevation: 0,
-                                  child: InkWell(
-                                    customBorder: const CircleBorder(),
-                                    onTap: (!isOnline ||
-                                            state.playbackState ==
-                                                StreamState.loading ||
-                                            state.playbackState ==
-                                                StreamState.buffering ||
-                                            _showLocalLoading)
-                                        ? (!isOnline
-                                            ? () {
-                                                // Network alert will automatically appear via main.dart
-                                                return;
-                                              }
-                                            : null)
-                                        : () {
-                                            if (state.playbackState ==
-                                                StreamState.playing) {
-                                              // PAUSE: Set flag to prevent spinner
-                                              setState(() {
-                                                _userPressedPause = true;
-                                              });
-                                              context
-                                                  .read<StreamBloc>()
-                                                  .add(PauseStream());
-                                            } else {
-                                              // PLAY: Show spinner
-                                              LoggerService.debug(
-                                                  '🔄 SPINNER: Play button pressed, current state: ${state.playbackState}');
-                                              setState(() {
-                                                _showLocalLoading = true;
-                                                _sawPlaybackProgress = false;
-                                                _userPressedPause = false;
-                                              });
-                                              LoggerService.debug(
-                                                  '🔄 SPINNER: Spinner enabled, starting timeout');
-                                              _startSpinnerTimeout();
-                                              context
-                                                  .read<StreamBloc>()
-                                                  .add(StartStream());
-                                            }
-                                          },
-                                    child: SizedBox(
-                                      width: isSmall
-                                          ? 90.0
-                                          : (isTab ? 150.0 : 120.0),
-                                      height: isSmall
-                                          ? 90.0
-                                          : (isTab ? 150.0 : 120.0),
-                                      child: Center(
-                                        child: (_showLocalLoading ||
-                                                _isConnectingState(
-                                                    state.playbackState))
-                                            ? SizedBox(
-                                                width: isSmall
-                                                    ? 38.0
-                                                    : (isTab ? 64.0 : 50.0),
-                                                height: isSmall
-                                                    ? 38.0
-                                                    : (isTab ? 64.0 : 50.0),
-                                                child:
-                                                    CircularProgressIndicator(
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                          Color>(isDark
-                                                              ? Colors.white
-                                                              : Colors
-                                                                  .black87),
-                                                  strokeWidth: 4.0,
-                                                  strokeCap: StrokeCap.round,
-                                                ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: state.metadata?.current
+                                                    .hasHostImage ==
+                                                true
+                                            ? Image.network(
+                                                state.metadata!.current
+                                                    .hostImage!,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error,
+                                                    stackTrace) {
+                                                  final fallback = state
+                                                      .metadata!
+                                                      .stationFallbackImage;
+                                                  if (fallback != null) {
+                                                    return Image.network(
+                                                      fallback,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (ctx, e,
+                                                              st) =>
+                                                          _buildLoadingContainer(
+                                                              'Error loading image'),
+                                                    );
+                                                  }
+                                                  return _buildLoadingContainer(
+                                                      'Error loading image');
+                                                },
                                               )
-                                            : Icon(
-                                                _getPlaybackIcon(
-                                                    state.playbackState),
-                                                size: isSmall
-                                                    ? 90.0
-                                                    : (isTab ? 150.0 : 120.0),
-                                                color: isDark
-                                                    ? Colors.white
-                                                    : Colors.black87,
-                                              ),
+                                            : _buildLoadingContainer(
+                                                'Loading stream information...'),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            // Error Display
-                            if (state.errorMessage != null) ...[
+                              // Text section — natural height, always below image
                               Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Card(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .errorContainer,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.error_outline,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .error,
+                                padding: EdgeInsets.symmetric(horizontal: hPad),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (state.metadata != null) ...[
+                                      SizedBox(height: isSmall ? 16 : 20),
+                                      Text(
+                                        state.metadata!.current.showName,
+                                        style: AppTextStyles.showTitleForDevice(
+                                                MediaQuery.of(context).size)
+                                            .copyWith(color: iconColor),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        state.metadata!.current.time,
+                                        style: AppTextStyles.showTimeForDevice(
+                                                MediaQuery.of(context).size)
+                                            .copyWith(color: iconColor),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (state
+                                          .metadata!.current.hasSongInfo) ...[
+                                        SizedBox(height: isSmall ? 8 : 10),
+                                        Text(
+                                          'Song: ${state.metadata!.current.songTitle} - ${state.metadata!.current.songArtist}',
+                                          style:
+                                              AppTextStyles.bodyLargeForDevice(
+                                                      MediaQuery.of(context)
+                                                          .size)
+                                                  .copyWith(color: iconColor),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            state.errorMessage!,
-                                            style: AppTextStyles.bodyMedium
-                                                .copyWith(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .error,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.refresh),
-                                          onPressed: () {
-                                            context
-                                                .read<StreamBloc>()
-                                                .add(RetryStream());
-                                          },
+                                      ] else if (state.metadata!.next.showName
+                                          .isNotEmpty) ...[
+                                        SizedBox(height: isSmall ? 8 : 10),
+                                        Text(
+                                          'Next: ${state.metadata!.next.showName}',
+                                          style:
+                                              AppTextStyles.bodyMediumForDevice(
+                                                      MediaQuery.of(context)
+                                                          .size)
+                                                  .copyWith(color: iconColor),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ],
+                                    ] else ...[
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        'Loading stream information...',
+                                        style: AppTextStyles.bodyMedium
+                                            .copyWith(color: iconColor),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              // Breathing between the metadata and the play button.
+                              SizedBox(height: gapAboveButton),
+                              // Playback Control with Loading State
+                              Container(
+                                alignment: Alignment.center,
+                                margin: EdgeInsets.symmetric(
+                                    vertical: buttonMargin),
+                                child: Semantics(
+                                  button: true,
+                                  enabled: true,
+                                  label: _showLocalLoading
+                                      ? 'Loading audio'
+                                      : (state.playbackState ==
+                                              StreamState.playing
+                                          ? 'Stop stream and reset'
+                                          : 'Play stream'),
+                                  hint: _showLocalLoading
+                                      ? null
+                                      : 'Double tap to ${state.playbackState == StreamState.playing ? 'stop and reset' : 'play'}',
+                                  liveRegion: _showLocalLoading,
+                                  child: Material(
+                                    color: isDark
+                                        ? WBAIColors.trueBlack
+                                        : Colors.white,
+                                    shape: const CircleBorder(),
+                                    elevation: 0,
+                                    child: InkWell(
+                                      customBorder: const CircleBorder(),
+                                      onTap: (!isOnline ||
+                                              state.playbackState ==
+                                                  StreamState.loading ||
+                                              state.playbackState ==
+                                                  StreamState.buffering ||
+                                              _showLocalLoading)
+                                          ? (!isOnline
+                                              ? () {
+                                                  // Network alert will automatically appear via main.dart
+                                                  return;
+                                                }
+                                              : null)
+                                          : () {
+                                              if (state.playbackState ==
+                                                  StreamState.playing) {
+                                                // PAUSE: Set flag to prevent spinner
+                                                setState(() {
+                                                  _userPressedPause = true;
+                                                });
+                                                context
+                                                    .read<StreamBloc>()
+                                                    .add(PauseStream());
+                                              } else {
+                                                // PLAY: Show spinner
+                                                LoggerService.debug(
+                                                    '🔄 SPINNER: Play button pressed, current state: ${state.playbackState}');
+                                                setState(() {
+                                                  _showLocalLoading = true;
+                                                  _sawPlaybackProgress = false;
+                                                  _userPressedPause = false;
+                                                });
+                                                LoggerService.debug(
+                                                    '🔄 SPINNER: Spinner enabled, starting timeout');
+                                                _startSpinnerTimeout();
+                                                context
+                                                    .read<StreamBloc>()
+                                                    .add(StartStream());
+                                              }
+                                            },
+                                      child: SizedBox(
+                                        width: isSmall
+                                            ? 90.0
+                                            : (isTab ? 150.0 : 120.0),
+                                        height: isSmall
+                                            ? 90.0
+                                            : (isTab ? 150.0 : 120.0),
+                                        child: Center(
+                                          child: (_showLocalLoading ||
+                                                  _isConnectingState(
+                                                      state.playbackState))
+                                              ? SizedBox(
+                                                  width: isSmall
+                                                      ? 38.0
+                                                      : (isTab ? 64.0 : 50.0),
+                                                  height: isSmall
+                                                      ? 38.0
+                                                      : (isTab ? 64.0 : 50.0),
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation<
+                                                                Color>(
+                                                            isDark
+                                                                ? Colors.white
+                                                                : Colors
+                                                                    .black87),
+                                                    strokeWidth: 4.0,
+                                                    strokeCap: StrokeCap.round,
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  _getPlaybackIcon(
+                                                      state.playbackState),
+                                                  size: isSmall
+                                                      ? 90.0
+                                                      : (isTab ? 150.0 : 120.0),
+                                                  color: isDark
+                                                      ? Colors.white
+                                                      : Colors.black87,
+                                                ),
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
+                              // Error Display
+                              if (state.errorMessage != null) ...[
+                                Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Card(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .errorContainer,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.error_outline,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .error,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              state.errorMessage!,
+                                              style: AppTextStyles.bodyMedium
+                                                  .copyWith(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .error,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.refresh),
+                                            onPressed: () {
+                                              context
+                                                  .read<StreamBloc>()
+                                                  .add(RetryStream());
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              // Breathing below the play button before the
+                              // floating donate / sleep-timer strip.
+                              SizedBox(height: gapBelowButton),
                             ],
-                            // Breathing below the play button before the
-                            // floating donate / sleep-timer strip.
-                            SizedBox(height: gapBelowButton),
-                          ],
                           ),
                         ),
                       );
