@@ -29,11 +29,22 @@ class AudioServerErrorModal extends StatelessWidget {
     final Color card = isDark ? const Color(0xFF1C1413) : WBAIColors.white;
     final Color ink = isDark ? WBAIColors.white : WBAIColors.darkBrown;
 
-    return AbsorbPointer(
-      absorbing: true,
-      child: Container(
-        color: Colors.black.withValues(alpha: isDark ? 0.65 : 0.55),
-        child: Center(
+    // NOTE: the barrier and the card are SIBLINGS in a Stack. The barrier
+    // (ModalBarrier) blocks taps to the content behind the modal, while the
+    // card stays fully interactive so the "Got it" button receives taps.
+    // (A previous version wrapped the whole thing in AbsorbPointer(absorbing:
+    // true), which swallowed the button's own taps → the modal was
+    // undismissable.)
+    return Stack(
+      children: [
+        // Scrim that blocks background taps but NOT the card.
+        Positioned.fill(
+          child: ModalBarrier(
+            color: Colors.black.withValues(alpha: isDark ? 0.65 : 0.55),
+            dismissible: false,
+          ),
+        ),
+        Center(
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 28),
             padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
@@ -129,7 +140,7 @@ class AudioServerErrorModal extends StatelessWidget {
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

@@ -350,6 +350,12 @@ class _HomePageState extends State<HomePage> {
               SemanticsService.sendAnnouncement(View.of(context), msg, dir);
             }
 
+            // The modal owns the outage message. Kill any transient snackbar
+            // that raced ahead of it, so nothing is stranded behind the modal.
+            if (state.showServerErrorModal) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            }
+
             // Only surface the transient snackbar when the full-screen
             // server-error modal is NOT already explaining the outage —
             // otherwise the user gets the same message twice.
@@ -699,8 +705,10 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                               ),
-                              // Error Display
-                              if (state.errorMessage != null) ...[
+                              // Error Display — suppressed while the full-screen
+                              // server-error modal is up (the modal owns it).
+                              if (state.errorMessage != null &&
+                                  !state.showServerErrorModal) ...[
                                 Padding(
                                   padding: const EdgeInsets.all(8.0),
                                   child: Card(

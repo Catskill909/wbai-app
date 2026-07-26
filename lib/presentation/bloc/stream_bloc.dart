@@ -36,6 +36,11 @@ class ServerErrorOccurred extends StreamEvent {
 }
 
 // States
+
+/// Sentinel marking "argument not supplied" in copyWith, so an explicit
+/// `null` can distinguish "clear this field" from "leave it unchanged".
+const Object _noUpdate = Object();
+
 class StreamBlocState {
   final StreamState playbackState;
   final StreamMetadata? metadata;
@@ -52,13 +57,18 @@ class StreamBlocState {
   StreamBlocState copyWith({
     StreamState? playbackState,
     StreamMetadata? metadata,
-    String? errorMessage,
+    // Sentinel default so callers can explicitly clear the error by passing
+    // `errorMessage: null` (a plain `?? this.errorMessage` would ignore null
+    // and keep the stale message — leaving a snackbar/modal that won't clear).
+    Object? errorMessage = _noUpdate,
     bool? showServerErrorModal,
   }) {
     return StreamBlocState(
       playbackState: playbackState ?? this.playbackState,
       metadata: metadata ?? this.metadata,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: identical(errorMessage, _noUpdate)
+          ? this.errorMessage
+          : errorMessage as String?,
       showServerErrorModal: showServerErrorModal ?? this.showServerErrorModal,
     );
   }
@@ -113,10 +123,12 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     _stateSubscription = _repository.stateStream.listen(
       (streamState) {
         if (streamState == StreamState.error) {
-          add(UpdatePlaybackState(
-            streamState,
-            errorMessage: 'Stream playback error occurred',
-          ));
+          // A real server outage carries its own message + modal via the
+          // dedicated serverErrorStream (ServerErrorOccurred). The generic
+          // bridge must NOT attach a second "Stream playback error occurred"
+          // message — that redundant string is what lit the snackbar and the
+          // inline error card behind the modal. Just track the error state.
+          add(UpdatePlaybackState(streamState));
         } else {
           add(UpdatePlaybackState(streamState));
         }

@@ -51,6 +51,13 @@ class StreamRepository {
   // PHASE 10: guard against re-entrancy while classifying a player error.
   bool _handlingPlayerError = false;
 
+  // Dismiss latch: once the user taps "Got it" on the server-error modal, we
+  // stop re-surfacing the SAME outage (the reconnect loop / player-error path
+  // would otherwise re-emit and the modal would pop straight back, looking
+  // undismissable). Reset on the next explicit play() so a new attempt can
+  // surface a fresh outage.
+  bool _serverErrorDismissed = false;
+
   // True between a play() request and the player actually reaching `playing`.
   // During this window the source can momentarily report `ready` before its
   // `playing` flag flips true; without this guard that instant is mapped to
@@ -232,6 +239,9 @@ class StreamRepository {
       // UI immediately and let the player connect. The old pre-flight GET added
       // ~2s of fixed latency in front of every play; just_audio surfaces real
       // connection/stream errors which we classify on the failure path below.
+      // A fresh, explicit play attempt clears the dismiss latch so a genuinely
+      // new outage can surface the modal again.
+      _serverErrorDismissed = false;
       _awaitingPlay = true;
       _updateState(StreamState.connecting);
 
@@ -488,6 +498,14 @@ class StreamRepository {
 
   /// Handle server-specific errors and reset audio controls
   Future<void> _handleServerError(AudioServerHealthResult healthResult) async {
+    // If the user already dismissed this outage, don't resurrect the modal.
+    // A fresh play() clears the latch and lets a new outage surface.
+    if (_serverErrorDismissed) {
+      LoggerService.info(
+          '🎵 StreamRepository: Server error suppressed (user dismissed) - not re-showing modal');
+      return;
+    }
+
     LoggerService.info(
         '🎵 StreamRepository: Handling server error: ${healthResult.errorType}');
 
@@ -529,6 +547,15 @@ class StreamRepository {
 
     // Reset audio controls and clear lockscreen
     await _resetAudioControlsForServerError();
+
+    // Re-check the dismiss latch AFTER the awaits above: the user may have
+    // tapped "Got it" while this handler was mid-reset. Without this a stale,
+    // already-in-flight error would re-raise the modal we just closed.
+    if (_serverErrorDismissed) {
+      LoggerService.info(
+          '🎵 StreamRepository: Dismissed during handling - not re-raising modal');
+      return;
+    }
 
     // Update audio state manager
     AudioStateManager().handleServerError(audioState, errorMessage);
@@ -599,6 +626,10 @@ class StreamRepository {
   /// Clear server error state and allow retry
   void clearServerError() {
     LoggerService.info('🎵 StreamRepository: Clearing server error state');
+    // Latch the dismissal and stop the background reconnect loop so it can't
+    // keep hammering the dead server and re-raise the modal we just closed.
+    _serverErrorDismissed = true;
+    _audioHandler.haltReconnect();
     AudioStateManager().clearServerError();
     AudioServerHealthChecker
         .clearCache(); // Clear health check cache for fresh retry
