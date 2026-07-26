@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../bloc/stream_bloc.dart';
 import '../../data/repositories/stream_repository.dart';
 import '../theme/font_constants.dart';
@@ -349,22 +350,32 @@ class _HomePageState extends State<HomePage> {
               SemanticsService.sendAnnouncement(View.of(context), msg, dir);
             }
 
-            if (state.errorMessage != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    state.errorMessage!,
-                    style: AppTextStyles.bodyMedium,
+            // Only surface the transient snackbar when the full-screen
+            // server-error modal is NOT already explaining the outage —
+            // otherwise the user gets the same message twice.
+            if (state.errorMessage != null && !state.showServerErrorModal) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "Stream unavailable — please try again shortly",
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                    backgroundColor: WBAIColors.darkBrown,
+                    behavior: SnackBarBehavior.floating,
+                    action: SnackBarAction(
+                      label: 'Retry',
+                      textColor: WBAIColors.blue,
+                      onPressed: () {
+                        context.read<StreamBloc>().add(RetryStream());
+                      },
+                    ),
                   ),
-                  behavior: SnackBarBehavior.floating,
-                  action: SnackBarAction(
-                    label: 'Retry',
-                    onPressed: () {
-                      context.read<StreamBloc>().add(RetryStream());
-                    },
-                  ),
-                ),
-              );
+                );
               // Announce error message for screen readers
               SemanticsService.sendAnnouncement(View.of(context),
                   state.errorMessage!, Directionality.of(context));
