@@ -75,7 +75,14 @@ class AudioServerHealthChecker {
       final response = await _dio.get(
         probeUrl,
         options: Options(
-          validateStatus: (status) => status != null && status < 500,
+          // Accept EVERY status so the classification below can run. With the
+          // old `status < 500` guard, Dio threw on 5xx before we ever looked at
+          // the code — which made the 503 and generic-5xx branches below dead
+          // code, and routed an overloaded Icecast (503, a very ordinary outage
+          // for a radio station) into NetworkConnectivityException. The
+          // listener was then told to check their own internet connection while
+          // the station was the thing that was down.
+          validateStatus: (status) => status != null,
           responseType: ResponseType.stream, // Don't download the entire stream
           headers: {
             'Range':
@@ -183,7 +190,10 @@ class AudioServerHealthChecker {
       url,
       options: Options(
         responseType: ResponseType.plain,
-        validateStatus: (status) => status != null && status < 500,
+        // As above: accept everything so a 5xx from the playlist host is
+        // reported as the station being down, not as the listener's connection
+        // being at fault.
+        validateStatus: (status) => status != null,
       ),
     );
     if ((res.statusCode ?? 0) != 200) {

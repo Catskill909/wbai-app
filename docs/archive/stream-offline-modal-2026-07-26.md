@@ -45,3 +45,9 @@ that's correct, the stream really is down.)
   initial `StreamBlocState` — that traps the user in an undismissable modal on
   launch.
 - `flutter analyze` clean on both changed files.
+
+---
+
+**Superseded 2026-08-14.** This changelog describes the snackbar-based design
+that has since been removed. See `docs/FEATURE_stream_offline_notice.md` for the
+current behaviour and `docs/STREAM_OFFLINE_MODAL_AUDIT.md` §v4 for why.

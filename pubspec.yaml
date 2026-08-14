@@ -63,6 +63,11 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    # Oswald + Poppins, bundled so google_fonts never fetches them at runtime
+    # (see GoogleFonts.config.allowRuntimeFetching in main.dart). Without this
+    # the very screen that reports "you have no connection" needs a connection
+    # to render in the right typeface. OFL licences ship alongside.
+    - assets/fonts/
 
 # App Icon Configuration
 flutter_launcher_icons:

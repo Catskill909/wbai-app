@@ -96,4 +96,86 @@ void main() {
     expect(result.isHealthy, isFalse);
     expect(result.errorType, AudioServerErrorType.streamNotFound);
   });
+
+  // ---------------------------------------------------------------------
+  // Which NOTICE the listener ends up seeing hangs off these branches:
+  // an unhealthy result becomes the "outage" modal, while a thrown
+  // NetworkConnectivityException becomes the retryable "connection" modal.
+  // These were the untested paths behind the silent-failure bug.
+  // ---------------------------------------------------------------------
+
+  test('mount returns 503 => server overloaded (outage notice)', () async {
+    _installAdapter((o) {
+      if (o.uri.toString() == _m3uUrl) return _ok(_m3uBody);
+      return ResponseBody.fromString('busy', 503);
+    });
+    final r = await AudioServerHealthChecker.checkServerHealth(_m3uUrl);
+    expect(r.isHealthy, isFalse);
+    expect(r.errorType, AudioServerErrorType.serverOverloaded);
+  });
+
+  test('mount returns 403 => auth error (outage notice)', () async {
+    _installAdapter((o) {
+      if (o.uri.toString() == _m3uUrl) return _ok(_m3uBody);
+      return ResponseBody.fromString('denied', 403);
+    });
+    final r = await AudioServerHealthChecker.checkServerHealth(_m3uUrl);
+    expect(r.isHealthy, isFalse);
+    expect(r.errorType, AudioServerErrorType.authenticationError);
+  });
+
+  test('mount times out => connectionTimeout, not a crash', () async {
+    _installAdapter((o) {
+      if (o.uri.toString() == _m3uUrl) return _ok(_m3uBody);
+      throw DioException(
+          requestOptions: o, type: DioExceptionType.receiveTimeout);
+    });
+    final r = await AudioServerHealthChecker.checkServerHealth(_m3uUrl);
+    expect(r.isHealthy, isFalse);
+    expect(r.errorType, AudioServerErrorType.connectionTimeout);
+  });
+
+  test('captive-portal TLS interception => NetworkConnectivityException',
+      () async {
+    // A hotel/airport portal presenting its own certificate. This is the case
+    // that used to fail SILENTLY: not a server outage, and the connectivity
+    // probe still reads "online" because the portal answers with a 200 login
+    // page. It must throw so the repository raises the connection notice.
+    _installAdapter((o) {
+      if (o.uri.toString() == _m3uUrl) return _ok(_m3uBody);
+      throw DioException(
+          requestOptions: o, type: DioExceptionType.badCertificate);
+    });
+    expect(
+      () => AudioServerHealthChecker.checkServerHealth(_m3uUrl),
+      throwsA(isA<NetworkConnectivityException>()),
+    );
+  });
+
+  test('playlist host returns 500 => unhealthy, never reports healthy',
+      () async {
+    _installAdapter((o) => ResponseBody.fromString('server error', 500));
+    final r = await AudioServerHealthChecker.checkServerHealth(_m3uUrl);
+    expect(r.isHealthy, isFalse);
+  });
+
+  test('a failure is NEVER cached: the next probe re-checks and can recover',
+      () async {
+    // The "needs a reboot" bug: a single failure used to poison a static cache
+    // so every later play reported unhealthy until the process was killed.
+    var down = true;
+    _installAdapter((o) {
+      if (o.uri.toString() == _m3uUrl) return _ok(_m3uBody);
+      if (down) throw _connectionRefused(o);
+      return _ok('audio');
+    });
+
+    final first = await AudioServerHealthChecker.checkServerHealth(_m3uUrl);
+    expect(first.isHealthy, isFalse);
+
+    down = false; // station comes back
+    final second = await AudioServerHealthChecker.checkServerHealth(_m3uUrl);
+    expect(second.isHealthy, isTrue,
+        reason: 'a stale failure must not lock playback out');
+  });
 }

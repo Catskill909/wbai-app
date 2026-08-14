@@ -175,3 +175,121 @@ works, the play button genuinely re-probes the server each press.
 - `stream-offline-modal.md` (root) — short changelog
 
 `flutter analyze` clean on all changed files in both apps.
+
+---
+
+## Deep audit v4 (2026-08-14) — silent failures, and one surface for real
+
+A pre-release audit of the whole notification path found the previous design was
+still telling the listener **nothing at all** for a large class of failures.
+
+### Bug D — the silent failure (the important one)
+v2 removed the `'Stream playback error occurred'` string from the generic error
+bridge, and the `_noUpdate` sentinel made `copyWith` *explicitly clear*
+`errorMessage` on every playback-state tick. Together those meant `errorMessage`
+was only ever non-null while the modal was already up, or from the bloc's own
+try/catch — and since `AudioHandler.play()` swallows its exceptions instead of
+rethrowing, `_repository.play()` almost never throws. **The snackbar was
+effectively unreachable.**
+
+Concretely, three paths set the error state and emitted no message whatsoever:
+`_onConnectingTimeout`'s `NetworkConnectivityException` catch,
+`_handlePlaybackFailure`'s tail, and `_onPlayerError` (both its network catch
+and its "server probes healthy" branch). Symptom: tap play → spinner runs 8s →
+spinner stops → nothing. No modal, no message, no explanation.
+
+Worst realistic trigger: captive-portal Wi-Fi (hotel/airport) doing TLS
+interception → `DioExceptionType.badCertificate` → `NetworkConnectivityException`.
+`NetworkLostAlert` doesn't cover it either, because `ConnectivityService`'s probe
+accepts any 2xx/3xx and a captive portal's 200 login page reads as "online".
+
+**Fix:** every one of those paths now emits `StreamNotice.connection()`.
+
+### The rework
+- **No snackbars, anywhere.** They self-dismiss; the one explanation a listener
+  gets disappears if they looked away. Deleted.
+- **Inline error `Card` deleted.** It duplicated the snackbar's text *and* its
+  Retry action, and it sat inside the home Column **without being counted in
+  `spaceLeftForImage`**, so it shrank the station image whenever it appeared.
+- **`errorMessage` deleted from bloc state.** With the snackbar and card gone it
+  had no consumer, which retires the whole `_noUpdate` sentinel class of bugs
+  (Bug A). State now carries a single `StreamNotice? notice`; `copyWith` spells
+  clearing out as `clearNotice: true` rather than a null sentinel.
+- **Two channels collapsed to one.** `serverErrorStream` + the generic state
+  bridge → one `noticeStream` carrying `StreamNotice?`. `UpdatePlaybackState`
+  no longer carries error text at all, so it *structurally cannot* clobber a
+  notice — the guard that used to do that job is gone.
+- **Two variants** (`outage` / `connection`) so a network fault isn't
+  mislabelled as a station outage. Retry appears only on `connection`.
+
+### Adjacent bugs found and fixed in the same pass
+- `retry()` called `stop()` (which halts metadata polling) and `play()` never
+  restarted it → show name/host froze after every retry. Now calls
+  `restartMetadataService()`. Newly important: "Try again" is a real button now.
+- Metadata `onError` did `_updateState(StreamState.error)` → a transient
+  show-info fetch failure knocked the play button out of its playing state
+  mid-stream. Now logs only.
+- `stopAndColdReset` didn't clear `_awaitingPlay` (WBAI already did). Latched
+  true, the next `ready && !playing` maps to `buffering` → a spinner that never
+  resolves. Ported.
+- WBAI `widget_test.dart` failed in `setUpAll` (SharedPreferences has no
+  platform channel headless) — whole suite red. Added
+  `SharedPreferences.setMockInitialValues`.
+
+### Verified
+`flutter analyze` clean and `flutter test` green in both apps (KPFK 23 passed,
+WBAI 35 passed, 1 skipped each — the pre-existing device-only smoke test).
+New `test/stream_notice_test.dart` guards the notice state machine.
+
+### If it recurs — checklist
+1. Notice won't dismiss → check `haltReconnect()` fires and `clearNotice: true`
+   is used (never `notice: null`, which `copyWith` treats as "leave unchanged").
+2. Notice never appears for a network fault → check the emit calls in
+   `_emitConnectionNotice` callers; that's the silent-failure regression.
+3. Two messages at once → something reintroduced a snackbar or inline card.
+   Don't. See `no-snackbars` in the feature doc.
+4. Reproduce without an outage: emit `StreamNotice.connection()` on
+   `noticeStream`. **Never** hardcode a notice into the bloc's initial state.
+---
+
+## Deep audit v5 (2026-08-14) — scenario coverage, and a live misclassification
+
+Writing the scenario matrix immediately caught a real bug.
+
+### Bug E — every 5xx blamed the listener's internet
+`checkServerHealth` probed with `validateStatus: (status) => status != null &&
+status < 500`, so Dio threw on any 5xx *before* the status-code branching ran.
+That made two branches of the classifier unreachable dead code — `statusCode ==
+503` and the generic 5xx case — and routed every 5xx into
+`NetworkConnectivityException`, i.e. the **connection** notice.
+
+Net effect: an overloaded Icecast returning **503**, one of the most ordinary
+outage modes a radio station has, told the listener to check their own internet
+connection while the station was the thing that was down. Same for a 5xx from
+the `.m3u` host. Fixed by accepting every status so the classifier's own
+branches decide, in both the mount probe and the playlist fetch.
+
+### Testability seam
+`StreamBloc` now depends on a `StreamSource` interface that `StreamRepository`
+implements. Production wiring is unchanged; it exists so the bloc can be driven
+by a fake, since the real repository builds a just_audio player in its
+constructor and cannot run headless. This is what makes the "stays quiet when
+nothing is wrong" half of the matrix testable at all.
+
+### Coverage added
+- `outage_scenarios_test.dart` — 17 scenarios, split into "the listener IS
+  warned" and "the listener is NOT warned". The second group is the point:
+  healthy start, rebuffering blips, pause/resume, bare error states and metadata
+  updates must all raise nothing.
+- `audio_server_health_checker_test.dart` — 503, 403, timeout, playlist 5xx,
+  captive-portal bad certificate, and proof that a failure is never cached.
+- `stream_notice_modal_golden_test.dart` — both variants rendered to PNG with
+  real Oswald/Poppins and the MaterialIcons badge, plus tap tests guarding the
+  old `AbsorbPointer` regression.
+- `widget_test.dart` — moved `setupServiceLocator()` out of `setUpAll` and into
+  the (skipped) test body. `setUpAll` runs even for skipped tests, so it was
+  spinning up audio_service/AudioSession for nothing and intermittently failing
+  the whole suite under parallel load.
+
+See `TESTING_outage_scenarios.md` for the fault→notice table and the recipes for
+reproducing each outage on a device.

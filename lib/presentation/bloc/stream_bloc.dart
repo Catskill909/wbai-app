@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../core/services/logger_service.dart';
 import '../../core/services/audio_state_manager.dart';
+import '../../core/services/logger_service.dart';
 import '../../data/repositories/stream_repository.dart';
 import '../../domain/models/stream_metadata.dart';
+import '../../domain/models/stream_notice.dart';
 
 // Events
 abstract class StreamEvent {}
@@ -23,53 +24,54 @@ class UpdateMetadata extends StreamEvent {
 
 class UpdatePlaybackState extends StreamEvent {
   final StreamState state;
-  final String? errorMessage;
-  final bool isServerError;
-  UpdatePlaybackState(this.state, {this.errorMessage, this.isServerError = false});
+  UpdatePlaybackState(this.state);
 }
 
-class ClearServerError extends StreamEvent {}
-
-class ServerErrorOccurred extends StreamEvent {
-  final String? message; // null = clear the modal
-  ServerErrorOccurred(this.message);
+/// The repository raised (or cleared, with null) the reason audio isn't
+/// playing. This is the ONLY thing that drives the notice modal.
+class StreamNoticeRaised extends StreamEvent {
+  final StreamNotice? notice;
+  StreamNoticeRaised(this.notice);
 }
+
+/// The listener acknowledged the notice without retrying.
+class DismissStreamNotice extends StreamEvent {}
 
 // States
-
-/// Sentinel marking "argument not supplied" in copyWith, so an explicit
-/// `null` can distinguish "clear this field" from "leave it unchanged".
-const Object _noUpdate = Object();
 
 class StreamBlocState {
   final StreamState playbackState;
   final StreamMetadata? metadata;
-  final String? errorMessage;
-  final bool showServerErrorModal;
+
+  /// Why audio isn't playing, or null when there's nothing to say. This is the
+  /// single source of truth for user-facing error messaging — there is no
+  /// parallel `errorMessage` string, and deliberately so: the old field fed a
+  /// snackbar and an inline card alongside this modal, so one outage could be
+  /// announced three times, and its "is null an update or a no-op?" copyWith
+  /// ambiguity was its own recurring bug.
+  final StreamNotice? notice;
 
   StreamBlocState({
     required this.playbackState,
     this.metadata,
-    this.errorMessage,
-    this.showServerErrorModal = false,
+    this.notice,
   });
+
+  bool get hasNotice => notice != null;
 
   StreamBlocState copyWith({
     StreamState? playbackState,
     StreamMetadata? metadata,
-    // Sentinel default so callers can explicitly clear the error by passing
-    // `errorMessage: null` (a plain `?? this.errorMessage` would ignore null
-    // and keep the stale message — leaving a snackbar/modal that won't clear).
-    Object? errorMessage = _noUpdate,
-    bool? showServerErrorModal,
+    StreamNotice? notice,
+    // Explicit flag rather than a null sentinel: `notice` is nullable, and
+    // "pass null to clear" vs "omit to keep" is exactly the ambiguity that bit
+    // us before. Clearing is always spelled out.
+    bool clearNotice = false,
   }) {
     return StreamBlocState(
       playbackState: playbackState ?? this.playbackState,
       metadata: metadata ?? this.metadata,
-      errorMessage: identical(errorMessage, _noUpdate)
-          ? this.errorMessage
-          : errorMessage as String?,
-      showServerErrorModal: showServerErrorModal ?? this.showServerErrorModal,
+      notice: clearNotice ? null : (notice ?? this.notice),
     );
   }
 
@@ -80,26 +82,21 @@ class StreamBlocState {
     return other is StreamBlocState &&
         other.playbackState == playbackState &&
         other.metadata == metadata &&
-        other.errorMessage == errorMessage &&
-        other.showServerErrorModal == showServerErrorModal;
+        other.notice == notice;
   }
 
   @override
-  int get hashCode =>
-      playbackState.hashCode ^ 
-      metadata.hashCode ^ 
-      errorMessage.hashCode ^
-      showServerErrorModal.hashCode;
+  int get hashCode => Object.hash(playbackState, metadata, notice);
 }
 
 class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
-  final StreamRepository _repository;
+  final StreamSource _repository;
   StreamSubscription? _stateSubscription;
   StreamSubscription? _metadataSubscription;
-  StreamSubscription? _serverErrorSubscription;
+  StreamSubscription? _noticeSubscription;
 
   StreamBloc({
-    required StreamRepository repository,
+    required StreamSource repository,
   })  : _repository = repository,
         super(
           StreamBlocState(
@@ -114,39 +111,24 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     on<RetryStream>(_onRetryStream);
     on<UpdateMetadata>(_onUpdateMetadata);
     on<UpdatePlaybackState>(_onUpdatePlaybackState);
-    on<ClearServerError>(_onClearServerError);
-    on<ServerErrorOccurred>(_onServerErrorOccurred);
+    on<StreamNoticeRaised>(_onStreamNoticeRaised);
+    on<DismissStreamNotice>(_onDismissStreamNotice);
   }
 
   void _initializeSubscriptions() {
-    // Listen to repository state changes
+    // Playback state only. It carries no error text: the reason for a failure
+    // arrives on the notice channel below, so this bridge cannot clobber it.
     _stateSubscription = _repository.stateStream.listen(
-      (streamState) {
-        if (streamState == StreamState.error) {
-          // A real server outage carries its own message + modal via the
-          // dedicated serverErrorStream (ServerErrorOccurred). The generic
-          // bridge must NOT attach a second "Stream playback error occurred"
-          // message — that redundant string is what lit the snackbar and the
-          // inline error card behind the modal. Just track the error state.
-          add(UpdatePlaybackState(streamState));
-        } else {
-          add(UpdatePlaybackState(streamState));
-        }
-      },
+      (streamState) => add(UpdatePlaybackState(streamState)),
     );
 
-    // Listen to metadata updates
     _metadataSubscription = _repository.metadataStream.listen(
-      (metadata) {
-        add(UpdateMetadata(metadata));
-      },
+      (metadata) => add(UpdateMetadata(metadata)),
     );
 
-    // Listen to server-error signals (Icecast down, stream not found, etc.)
-    _serverErrorSubscription = _repository.serverErrorStream.listen(
-      (message) {
-        add(ServerErrorOccurred(message));
-      },
+    // The one channel that explains why audio isn't playing.
+    _noticeSubscription = _repository.noticeStream.listen(
+      (notice) => add(StreamNoticeRaised(notice)),
     );
   }
 
@@ -155,17 +137,15 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     Emitter<StreamBlocState> emit,
   ) async {
     try {
-      // Clear any previous error state when starting a new stream
-      emit(state.copyWith(
-        errorMessage: null,
-        showServerErrorModal: false,
-      ));
-      
+      // Clear any previous notice when starting a new attempt.
+      emit(state.copyWith(clearNotice: true));
+
       await _repository.play(source: AudioCommandSource.ui);
     } catch (e) {
+      LoggerService.streamError('Failed to start stream', e);
       emit(state.copyWith(
         playbackState: StreamState.error,
-        errorMessage: 'Failed to start stream: $e',
+        notice: const StreamNotice.connection(),
       ));
     }
   }
@@ -177,9 +157,10 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     try {
       await _repository.pause(source: AudioCommandSource.ui);
     } catch (e) {
+      LoggerService.streamError('Failed to pause stream', e);
       emit(state.copyWith(
         playbackState: StreamState.error,
-        errorMessage: 'Failed to pause stream: $e',
+        notice: const StreamNotice.connection(),
       ));
     }
   }
@@ -191,9 +172,10 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     try {
       await _repository.stop();
     } catch (e) {
+      LoggerService.streamError('Failed to stop stream', e);
       emit(state.copyWith(
         playbackState: StreamState.error,
-        errorMessage: 'Failed to stop stream: $e',
+        notice: const StreamNotice.connection(),
       ));
     }
   }
@@ -203,11 +185,16 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     Emitter<StreamBlocState> emit,
   ) async {
     try {
+      // Drop the notice as the retry starts. We deliberately do NOT go through
+      // the repository's dismiss path here: that latches "user dismissed" and
+      // halts reconnect, which is the opposite of what a retry wants.
+      emit(state.copyWith(clearNotice: true));
       await _repository.retry();
     } catch (e) {
+      LoggerService.streamError('Failed to retry stream', e);
       emit(state.copyWith(
         playbackState: StreamState.error,
-        errorMessage: 'Failed to retry stream: $e',
+        notice: const StreamNotice.connection(),
       ));
     }
   }
@@ -216,59 +203,44 @@ class StreamBloc extends Bloc<StreamEvent, StreamBlocState> {
     UpdateMetadata event,
     Emitter<StreamBlocState> emit,
   ) {
-    LoggerService.debug(
-        'Updating metadata in bloc: ${event.metadata.toString()}');
     emit(state.copyWith(metadata: event.metadata));
-    LoggerService.debug(
-        'New bloc state metadata: ${state.metadata?.toString()}');
   }
 
   void _onUpdatePlaybackState(
     UpdatePlaybackState event,
     Emitter<StreamBlocState> emit,
   ) {
-    // A server error is signalled on its own channel (ServerErrorOccurred).
-    // Don't let the generic state bridge — which always has isServerError=false
-    // — clobber an active server-error modal/message. Just track the state.
-    if (state.showServerErrorModal && !event.isServerError) {
-      emit(state.copyWith(playbackState: event.state));
+    emit(state.copyWith(playbackState: event.state));
+  }
+
+  void _onStreamNoticeRaised(
+    StreamNoticeRaised event,
+    Emitter<StreamBlocState> emit,
+  ) {
+    final notice = event.notice;
+    if (notice == null) {
+      emit(state.copyWith(clearNotice: true));
       return;
     }
     emit(state.copyWith(
-      playbackState: event.state,
-      errorMessage: event.errorMessage,
-      showServerErrorModal: event.isServerError,
+      playbackState: StreamState.error,
+      notice: notice,
     ));
   }
 
-  void _onServerErrorOccurred(
-    ServerErrorOccurred event,
+  void _onDismissStreamNotice(
+    DismissStreamNotice event,
     Emitter<StreamBlocState> emit,
   ) {
-    final hasError = event.message != null;
-    emit(state.copyWith(
-      playbackState: hasError ? StreamState.error : state.playbackState,
-      showServerErrorModal: hasError,
-      errorMessage: event.message,
-    ));
-  }
-
-  void _onClearServerError(
-    ClearServerError event,
-    Emitter<StreamBlocState> emit,
-  ) {
-    _repository.clearServerError();
-    emit(state.copyWith(
-      showServerErrorModal: false,
-      errorMessage: null,
-    ));
+    _repository.dismissNotice();
+    emit(state.copyWith(clearNotice: true));
   }
 
   @override
   Future<void> close() async {
     await _stateSubscription?.cancel();
     await _metadataSubscription?.cancel();
-    await _serverErrorSubscription?.cancel();
+    await _noticeSubscription?.cancel();
     await super.close();
   }
 }

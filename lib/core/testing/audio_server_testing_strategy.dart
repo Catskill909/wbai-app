@@ -168,28 +168,28 @@ class AudioServerTestingStrategy {
 
 1. SERVER DOWN TEST:
    - Call: AudioServerTestingStrategy.simulateServerDown()
-   - Expected: AudioServerErrorModal appears with "server unavailable" message
+   - Expected: StreamNoticeModal appears with "server unavailable" message
    - Expected: Play button resets to initial state
    - Expected: Lockscreen controls are cleared
 
 2. STREAM NOT FOUND TEST:
    - Call: AudioServerTestingStrategy.simulateStreamNotFound()
-   - Expected: AudioServerErrorModal appears with "stream not found" message
+   - Expected: StreamNoticeModal appears with "stream not found" message
    - Expected: Play button resets to initial state
 
 3. SERVER OVERLOADED TEST:
    - Call: AudioServerTestingStrategy.simulateServerOverloaded()
-   - Expected: AudioServerErrorModal appears with "server overloaded" message
+   - Expected: StreamNoticeModal appears with "server overloaded" message
    - Expected: Play button resets to initial state
 
 4. CONNECTION TIMEOUT TEST:
    - Call: AudioServerTestingStrategy.simulateConnectionTimeout()
-   - Expected: AudioServerErrorModal appears with "connection timeout" message
+   - Expected: StreamNoticeModal appears with "connection timeout" message
    - Expected: Play button resets to initial state
 
 5. AUTHENTICATION ERROR TEST:
    - Call: AudioServerTestingStrategy.simulateAuthError()
-   - Expected: AudioServerErrorModal appears with "access denied" message
+   - Expected: StreamNoticeModal appears with "access denied" message
    - Expected: Play button resets to initial state
 
 6. RECOVERY TEST:
@@ -200,7 +200,7 @@ class AudioServerTestingStrategy {
 
 7. NETWORK VS SERVER ERROR TEST:
    - Turn off WiFi/cellular (network error) - should show NetworkLostAlert
-   - Turn on WiFi/cellular, then call simulateServerDown() - should show AudioServerErrorModal
+   - Turn on WiFi/cellular, then call simulateServerDown() - should show StreamNoticeModal
    - Verify different modals appear for different error types
 
 USAGE IN DEBUG MODE:
