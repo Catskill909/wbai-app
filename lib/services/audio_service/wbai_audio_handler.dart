@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:http/http.dart' as http;
 import '../../core/constants/stream_constants.dart';
+import '../../core/testing/debug_stream_override.dart';
 import '../../core/services/logger_service.dart';
 import '../../core/utils/m3u_parser.dart';
 import '../../data/models/stream_metadata.dart';
@@ -13,7 +14,15 @@ import '../../data/models/stream_metadata.dart';
 /// from controlling the iOS lockscreen metadata
 class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _player;
-  final String _streamUrl;
+  final String _configuredStreamUrl;
+
+  /// Read per use rather than frozen at construction, so the debug outage
+  /// presets take effect on the next play without restarting the app.
+  /// Always the real stream in release builds.
+  String get _streamUrl =>
+      DebugStreamOverride.isOverridden
+          ? DebugStreamOverride.effectiveUrl
+          : _configuredStreamUrl;
   StreamMetadata? _currentMetadata;
 
   // Optional: track last buffering log time to reduce log noise
@@ -58,7 +67,7 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   WBAIAudioHandler._(
     this._player,
-    this._streamUrl,
+    this._configuredStreamUrl,
   ) {
     // CRITICAL: Set initial MediaItem immediately (working pattern)
     _setInitialMediaItem();

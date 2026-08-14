@@ -21,7 +21,7 @@ flutter test test/outage_scenarios_test.dart   # the scenario matrix
 |---|---|
 | `outage_scenarios_test.dart` | Full bloc-level matrix: which faults raise a notice, which raise **nothing**, dismiss/retry behaviour |
 | `audio_server_health_checker_test.dart` | HTTP-level classification: 200 / 404 / 403 / 503 / 5xx / timeout / refused / bad cert / dead `.m3u` |
-| `stream_notice_modal_golden_test.dart` | Both variants in **light and dark** (PNGs in `test/goldens/`), and the buttons actually fire |
+| `stream_notice_modal_golden_test.dart` | Both variants render correctly (PNGs in `test/goldens/`), and the buttons actually fire |
 | `stream_notice_test.dart` | Notice state machine + `copyWith` clearing semantics |
 | `bundled_fonts_test.dart` | Every font weight the app asks for is bundled |
 
@@ -64,10 +64,49 @@ that was never down.
 
 ## Reproducing on a real device
 
-### Server outages — point the app at a mock
+**You never take the station off air to test this.** The stream stays up and
+listeners are unaffected — the *app* is pointed somewhere broken instead.
 
-`StreamConstants.streamUrl` is the only thing to change. Run a throwaway server
-and edit that constant to `http://<your-mac-lan-ip>:8000/wbai.m3u`.
+### Settings → Developer → Outage Testing (debug builds only)
+
+Run a debug build (`flutter run`), open Settings, and you'll find a Developer
+section that isn't there in release. It offers two levels:
+
+**1 · Redirect the stream, then press play.** Pick a preset, go back, press
+play. The app runs its genuine pipeline — `.m3u` resolution, health probe,
+classification, notice — against a dead endpoint. A pass here means detection
+actually works, not merely that the modal can be drawn.
+
+| Preset | Points at | Needs a server? | Expect |
+|---|---|---|---|
+| Live stream (normal) | the real stream | — | audio, **no modal** |
+| Server refuses connection | `127.0.0.1:9` (discard port) | no | **outage** modal |
+| Server times out | `10.255.255.1` (non-routable) | no | **outage** modal, ~10s |
+| Mount not found (404) | a nonexistent Icecast mount | no | **outage** modal |
+
+WBAI streams a direct Icecast mount rather than an `.m3u`, so there is no
+playlist-resolution preset here. None of them need any infrastructure — they're unreachable or wrong by
+construction. Select **Live stream (normal)** when you're done.
+
+**2 · Show a notice directly.** Renders either variant immediately, skipping
+detection, for checking wording, layout and the buttons on a real screen. This
+is the practical way to see the *connection* variant, which otherwise needs
+something like a captive-portal Wi-Fi to provoke.
+
+The panel is gated on `kDebugMode`, a compile-time constant, so the tree-shaker
+strips it and every preset URL from release binaries. Verify after a release
+build:
+
+```bash
+flutter build ios --release --no-codesign
+strings build/ios/iphoneos/Runner.app/Frameworks/App.framework/App \
+  | grep -E "Outage Testing|127\.0\.0\.1:9"   # expect no output
+```
+
+### Alternative: a local mock server
+
+Only needed for statuses the presets don't cover (503, 500, redirects). Point
+`StreamConstants.streamUrl` at your Mac's LAN IP:
 
 ```bash
 mkdir -p /tmp/fakestream && cd /tmp/fakestream
@@ -75,16 +114,8 @@ printf '#EXTM3U\nhttp://<your-mac-lan-ip>:8000/mount\n' > wbai.m3u
 python3 -m http.server 8000
 ```
 
-| To simulate | Do this |
-|---|---|
-| Healthy | add a `mount` file with any bytes — expect **no modal** |
-| Mount 404 | leave `mount` absent — expect **outage** modal |
-| `.m3u` host down | stop the server — expect **outage** modal |
-| Dead playlist | `echo "garbage" > wbai.m3u` — expect **outage** modal |
-| 503 / 500 | serve via a tiny handler returning that status — expect **outage** modal |
-
-The device and Mac must be on the same network, and iOS needs a plain-HTTP
-exception for the mock host.
+Add or remove a `mount` file to flip between healthy and 404. The device and Mac
+must share a network.
 
 ### Network faults
 
@@ -105,19 +136,11 @@ Run these against the **real** stream and confirm **no modal ever appears**:
 - Background the app for a few minutes, return, keep playing.
 - Let a show change happen (metadata refresh) while playing.
 
-### Forcing a notice without an outage
+### A warning about the initial state
 
-Fastest way to eyeball both variants on-device — temporarily, in `home_page.dart`:
-
-```dart
-// DEBUG ONLY — remove before release.
-context.read<StreamBloc>().add(
-  StreamNoticeRaised(const StreamNotice.connection()),
-);
-```
-
-Never hardcode a notice into the bloc's **initial state**: it renders before
-anything can clear it and the app launches into an undismissable modal.
+Never hardcode a notice into the bloc's **initial state** to preview it: it
+renders before anything can clear it, and the app launches into an
+undismissable modal. Use the debug panel above instead.
 
 ---
 

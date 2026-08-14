@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/stream_constants.dart';
 import '../theme/font_constants.dart';
+import 'debug_outage_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -26,6 +28,23 @@ class SettingsPage extends StatelessWidget {
       ),
       body: ListView(
         children: [
+          // Debug builds only: kDebugMode is a compile-time constant, so the
+          // tree-shaker removes this entire entry (and DebugOutagePage with it)
+          // from a release binary.
+          if (kDebugMode) ...[
+            _buildSettingHeader('Developer'),
+            ListTile(
+              leading: const Icon(Icons.bug_report_outlined),
+              title: Text('Outage Testing', style: AppTextStyles.bodyMedium),
+              subtitle: const Text(
+                  'Rehearse stream failures without taking the station off air'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                    builder: (_) => const DebugOutagePage()),
+              ),
+            ),
+          ],
           _buildSettingHeader('Streaming'),
           ListTile(
             title: Text(
