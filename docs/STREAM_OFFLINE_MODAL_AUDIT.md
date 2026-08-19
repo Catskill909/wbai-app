@@ -305,5 +305,9 @@ confirmed-dead endpoint; the next explicit Play rebuilds from idle.
 
 The debug-only home bug icon opens Outage Testing directly. Selecting a preset
 stops the loaded source before showing a persistent, theme-aware confirmation
-modal, preventing iOS resume-in-place from bypassing the override. WBAI retains
+modal. (That teardown was originally needed to stop iOS resume-in-place from
+bypassing the override. Resume-in-place was removed on 2026-08-18 — `play()` now
+always rebuilds — so the override can no longer be bypassed regardless; the
+teardown is kept as it also guarantees the preset takes effect immediately.
+See `audio-play-bug.md`.) WBAI retains
 its light/dark theme behavior and existing news feature unchanged.

@@ -363,16 +363,25 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       LoggerService.info(
           '🎵 Reconnect attempt $_reconnectAttempts/$_maxReconnectAttempts...');
 
-      // EXPERT: Reset with resolved direct stream URL
-      await _player.pause();
-      await _player.seek(Duration.zero);
-      final directStreamUrl = await _resolveStreamUrl(_streamUrl);
-      await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(directStreamUrl),
-          tag: _currentMediaItem, // Use current MediaItem
-        ),
-      );
+      // ANDROID: guard the transient idle that setAudioSource emits, exactly as
+      // play() does. Without this, a reconnect blanks the notification / lock
+      // screen (MediaSession STATE_NONE makes Samsung drop the session, art and
+      // all) before recovering. This matters more now that a `completed` live
+      // stream routes here — reconnects are no longer rare.
+      _rebuildingSource = true;
+      try {
+        await _player.pause();
+        await _player.seek(Duration.zero);
+        final directStreamUrl = await _resolveStreamUrl(_streamUrl);
+        await _player.setAudioSource(
+          AudioSource.uri(
+            Uri.parse(directStreamUrl),
+            tag: _currentMediaItem, // Use current MediaItem
+          ),
+        );
+      } finally {
+        _rebuildingSource = false;
+      }
 
       // Resume playback
       await _player.play();
@@ -663,11 +672,24 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> resetToColdStart() async {
     try {
       LoggerService.info('🎵 AudioHandler: Reset to cold-start requested');
-      // stop() — not pause() — so the reset is genuinely COLD: it tears the
-      // loaded source down instead of leaving a buffered one behind. A "cold
-      // start" that left audio buffered was one of the feeders of the
-      // stale-cache bug. See docs/audio-play-bug.md (D8).
-      await _player.stop();
+      // DELIBERATELY pause(), NOT stop() — ANDROID REGRESSION GUARD.
+      //
+      // stop() drops the player to ProcessingState.idle. On Android that makes
+      // _broadcastState's shouldShowPlayer false, which pushes
+      // mediaItem.add(null) and BLANKS the notification / lock screen. This
+      // method's main caller is the network-recovery path, which passes
+      // preserveMetadata: true precisely so the show info and lock screen do
+      // NOT blank — stop() would defeat it. (Guarding with _rebuildingSource
+      // is not the answer either: it would re-add the notification on the
+      // app-close path, where stop() has just cleared it on purpose.)
+      //
+      // No staleness risk: setAudioSource() below replaces the buffer outright,
+      // and play() rebuilds from the live edge unconditionally regardless. The
+      // earlier D8 change to stop() was written when play() still had the
+      // sourceAlive resume path; that path is gone, so it bought nothing and
+      // cost an Android blank. See docs/audio-play-bug.md (D8, Android audit).
+      await _player.pause();
+      await _player.seek(Duration.zero);
 
       // EXPERT: Use resolved direct stream URL
       final directStreamUrl = await _resolveStreamUrl(_streamUrl);
