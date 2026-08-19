@@ -13,7 +13,16 @@ at the same lock-screen problem). Start here rather than guessing from filenames
 
 | Doc | Guards against |
 | --- | --- |
+| [RELEASE-TESTING-HANDOFF.md](RELEASE-TESTING-HANDOFF.md) | **Start here before building/testing WBAI** — what changed, full iOS + Android matrices, outstanding blockers |
 | [audio-play-bug.md](audio-play-bug.md) | **Live stream must ALWAYS play live, NEVER the cache.** `play()` rebuilds unconditionally — no resume path, no staleness window, no platform gate. Also: `completed` on a live stream is always a failure, never a clean stop. Includes the Android notification/MediaSession audit and the device-test matrix |
+
+**The second rule, equally load-bearing:** `NSMicrophoneUsageDescription` must
+stay in `ios/Runner/Info.plist`. Neither app has a microphone feature, so it
+looks removable — but `audio_session` and `flutter_inappwebview_ios` reference
+mic APIs, and Apple scans embedded frameworks, so removing it means an
+**ITMS-90683** rejected upload. Giving it a dismissive string instead invites an
+App Review 5.1.1 question. Present, with an honest explanation, is the only
+correct state. Guarded by `test/info_plist_required_keys_test.dart`.
 
 **The one rule that keeps getting traded away:** the iOS lock-screen "previous
 app flashes on play" is a *cosmetic* bug whose correct fix is the native

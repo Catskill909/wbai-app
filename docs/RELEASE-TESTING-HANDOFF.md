@@ -35,7 +35,38 @@ violated. Background: [audio-play-bug.md](audio-play-bug.md).
 | `f1cf916` | Debug outage panel (debug-only bug icon → `DebugOutagePage`); outage notice now emitted **before** slow player cleanup, so the modal is not delayed by up to a minute |
 | `67563c3` | **The live-stream fix.** `play()` always rebuilds; `completed` triggers reconnect instead of a silent stop; `_handleError` documented as log-only; 6s M3U timeout. **Plus the native `reassertNowPlaying` pre-claim, which WBAI did not previously have** |
 | `c79621c` | Android audit: reverted a notification-blanking regression; guarded `_reconnect()`'s rebuild so reconnects no longer blank the lock screen |
-| `63b18fe` | `Info.plist`: removed unused mic + BGTask keys, **fixed a duplicate `UIBackgroundModes` key**, added `ITSAppUsesNonExemptEncryption` |
+| `63b18fe` | `Info.plist`: removed BGTask key, **fixed a duplicate `UIBackgroundModes` key**, added `ITSAppUsesNonExemptEncryption`. Also removed the mic key — **which was wrong, and reverted below** |
+| `9516934` | **Restored `NSMicrophoneUsageDescription`** after KPFK's build was rejected (ITMS-90683), and added `test/info_plist_required_keys_test.dart` to stop it recurring |
+
+### ⚠️ `NSMicrophoneUsageDescription` must NEVER be removed
+
+Earlier in the same session it was deleted from both apps on the reasoning that
+neither has a microphone feature. KPFK's build `1.0.2+13` was then **rejected**:
+
+> **ITMS-90683: Missing purpose string in Info.plist** … If you're using external
+> libraries or SDKs, they may reference APIs that require a purpose string.
+> **While your app might not use these APIs, a purpose string is still required.**
+
+**Why it is mandatory:** Apple scans every linked binary, *including embedded
+frameworks*. Two plugins here reference microphone APIs — `audio_session`
+(AVAudioSession record APIs) and `flutter_inappwebview_ios` (WebView
+`getUserMedia`). Checking the main `Runner` binary is **not** sufficient; that is
+exactly the mistake that caused the rejection. Scan `Runner.app/Frameworks/`.
+
+**It fails in both directions**, which is why it has flip-flopped repeatedly:
+- **Removed** → ITMS-90683, upload rejected.
+- **Present but dismissive** (`"This app does not use the microphone"`) → passes
+  the scanner, but invites an App Review **5.1.1** question about why mic access
+  is declared at all.
+
+Correct state: **present, with a string that honestly explains it**. Guarded by
+`test/info_plist_required_keys_test.dart`, which fails the build if the key is
+missing, the string is dismissive/too short, `ITSAppUsesNonExemptEncryption` is
+absent, or `UIBackgroundModes` is not declared exactly once.
+
+WBAI never shipped the removal — it was caught and reverted on KPFK first.
+
+---
 
 ### The two highest-risk items
 
@@ -143,7 +174,7 @@ graceful path if denied.
 
 ## 6. Confirmed healthy — no action
 
-- `flutter analyze` clean · **79/79 tests** · `plutil -lint` OK
+- `flutter analyze` clean · **83/83 tests** · `plutil -lint` OK
 - Debug surfaces hard-gated: `DebugStreamOverride.url` returns null outside
   `kDebugMode`, so a release binary always resolves to the live stream
 - Release logging silent (`SEVERE` only, no console output)
