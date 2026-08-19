@@ -293,3 +293,17 @@ nothing is wrong" half of the matrix testable at all.
 
 See `TESTING_outage_scenarios.md` for the fault→notice table and the recipes for
 reproducing each outage on a device.
+
+---
+
+## Sister-app parity update (2026-08-14)
+
+WBAI now carries the listener-first timeout ordering proven on a physical KPFK
+iPhone: **classify → halt reconnect → update error state → emit notice → clear
+platform controls**. Error cleanup stops the player but does not reload the
+confirmed-dead endpoint; the next explicit Play rebuilds from idle.
+
+The debug-only home bug icon opens Outage Testing directly. Selecting a preset
+stops the loaded source before showing a persistent, theme-aware confirmation
+modal, preventing iOS resume-in-place from bypassing the override. WBAI retains
+its light/dark theme behavior and existing news feature unchanged.

@@ -67,15 +67,15 @@ that was never down.
 **You never take the station off air to test this.** The stream stays up and
 listeners are unaffected — the *app* is pointed somewhere broken instead.
 
-### Settings → Developer → Outage Testing (debug builds only)
+### Home bug icon → Outage Testing (debug builds only)
 
-Run a debug build (`flutter run`), open Settings, and you'll find a Developer
-section that isn't there in release. It offers two levels:
+Run a debug build (`flutter run`) and tap the theme-aware bug icon in the home
+header. It opens Outage Testing directly and is absent from release builds.
 
-**1 · Redirect the stream, then press play.** Pick a preset, go back, press
-play. The app runs its genuine pipeline — `.m3u` resolution, health probe,
-classification, notice — against a dead endpoint. A pass here means detection
-actually works, not merely that the modal can be drawn.
+**1 · Redirect the stream, then press play.** Selecting a preset immediately
+stops and clears the loaded source. Its acknowledged confirmation modal offers
+**Go to player** or **Keep testing**. Press Play from home to run the genuine
+health-probe, classification, and notice pipeline.
 
 | Preset | Points at | Needs a server? | Expect |
 |---|---|---|---|
@@ -87,6 +87,11 @@ actually works, not merely that the modal can be drawn.
 WBAI streams a direct Icecast mount rather than an `.m3u`, so there is no
 playlist-resolution preset here. None of them need any infrastructure — they're unreachable or wrong by
 construction. Select **Live stream (normal)** when you're done.
+
+Confirmed outages are emitted before audio cleanup. Cleanup must not call
+`resetToColdStart()`, because that reloads the broken URL and can delay a
+timeout notice by more than a minute. This ordering was device-proven in KPFK;
+WBAI device timing remains a required verification step.
 
 **2 · Show a notice directly.** Renders either variant immediately, skipping
 detection, for checking wording, layout and the buttons on a real screen. This

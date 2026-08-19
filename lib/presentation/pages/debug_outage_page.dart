@@ -27,6 +27,82 @@ class DebugOutagePage extends StatefulWidget {
 }
 
 class _DebugOutagePageState extends State<DebugOutagePage> {
+  Future<void> _showPresetConfirmation(DebugOutagePreset preset) async {
+    final isLive = preset.url == null;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final colors = theme.colorScheme;
+
+        return Dialog(
+          backgroundColor: colors.surface,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: (isLive ? Colors.green : colors.primary)
+                        .withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isLive ? Icons.radio_rounded : Icons.science_outlined,
+                    color: isLive ? Colors.green : colors.primary,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  isLive ? 'Live stream restored' : 'Test ready',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  isLive
+                      ? 'The app is pointing at the real WBAI stream again. '
+                          'Return to the player and press Play.'
+                      : '${preset.label} is selected. The loaded audio source '
+                          'has been cleared, so the next Play will run this test.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: colors.onSurface),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Go to player'),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Keep testing'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final active = DebugStreamOverride.activeLabel;
@@ -74,7 +150,7 @@ class _DebugOutagePageState extends State<DebugOutagePage> {
               title: Text(preset.label, style: AppTextStyles.bodyMedium),
               subtitle: Text('${preset.description}\nExpect: ${preset.expected}'),
               isThreeLine: true,
-              onTap: () {
+              onTap: () async {
                 setState(() {
                   if (preset.url == null) {
                     DebugStreamOverride.clear();
@@ -82,14 +158,12 @@ class _DebugOutagePageState extends State<DebugOutagePage> {
                     DebugStreamOverride.apply(preset);
                   }
                 });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(preset.url == null
-                        ? 'Back to the live stream.'
-                        : 'Redirected. Go back and press play.'),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                // WBAI normally resumes an already-loaded iOS source in place
+                // to avoid lock-screen flicker. Stop first so the next Play
+                // cold-loads the selected debug URL rather than stale live
+                // audio.
+                context.read<StreamBloc>().add(StopStream());
+                await _showPresetConfirmation(preset);
               },
             );
           }),

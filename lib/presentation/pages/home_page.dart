@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/stream_bloc.dart';
 import '../../data/repositories/stream_repository.dart';
 import '../theme/font_constants.dart';
+import 'debug_outage_page.dart';
 import 'pacifica_apps_page.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/stream_notice_modal.dart';
@@ -230,6 +232,24 @@ class _HomePageState extends State<HomePage> {
         ),
         centerTitle: true,
         actions: [
+          if (kDebugMode)
+            IconButton(
+              tooltip: 'Developer testing',
+              icon: Icon(
+                Icons.bug_report_outlined,
+                size: _isLargeTablet(context)
+                    ? 44
+                    : (_isMediumTablet(context)
+                        ? 34
+                        : (_isSmallPhone(context) ? 22 : 26)),
+                color: iconColor,
+              ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) => const DebugOutagePage(),
+                ),
+              ),
+            ),
           IconButton(
             icon: Icon(
               isDark ? Icons.light_mode : Icons.dark_mode,
