@@ -3,6 +3,12 @@
 This folder has grown organically (60+ files, many of them successive attempts
 at the same lock-screen problem). Start here rather than guessing from filenames.
 
+## ▶ Start here for the next build/test session
+
+| Doc | What it's for |
+| --- | --- |
+| [RELEASE-TESTING-HANDOFF.md](RELEASE-TESTING-HANDOFF.md) | **Everything WBAI needs before release** — what changed, the full iOS + Android test matrices (none of it run yet), and the two outstanding blockers (version bump, Android 13+ notification permission) |
+
 ## Read before touching audio
 
 | Doc | Guards against |
