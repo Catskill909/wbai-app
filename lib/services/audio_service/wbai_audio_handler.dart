@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -24,6 +25,11 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           ? DebugStreamOverride.effectiveUrl
           : _configuredStreamUrl;
   StreamMetadata? _currentMetadata;
+
+  // iOS only: same channel AppDelegate listens on. Used to tell the native side
+  // to re-claim the lock-screen Now Playing slot the instant play() runs.
+  static const MethodChannel _nativeChannel =
+      MethodChannel('com.wbaifm.radio/metadata');
 
   // Optional: track last buffering log time to reduce log noise
   DateTime? _lastBufferingUpdate;
@@ -111,8 +117,8 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // here to pre-connect the live stream at app launch. Connecting WBAI's stream
       // held up startup so the home screen sat on the "Loading stream information…"
       // placeholder. There is no reason to buffer the live stream before the user
-      // presses play — play() already builds the source on demand (its cold/Android
-      // rebuild path). So we DEFER source setup to play() and keep startup off the
+      // presses play — play() always builds a fresh source on demand. So we DEFER
+      // source setup to play() and keep startup off the
       // network's critical path. The player stays idle until play(), which is fine.
 
       // Only update playback state, not metadata
@@ -234,11 +240,10 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // This was the root cause of the 500ms oscillation pattern
 
     // Handle errors through PlayerState
-    if (!state.playing &&
-        _player.processingState == ProcessingState.completed) {
-      LoggerService.audioError('Playback ended unexpectedly');
-      _handleError('Stream playback ended unexpectedly');
-    }
+    // NOTE: `completed` is handled in _handleProcessingState, which actually
+    // recovers (reconnects). It used to ALSO be handled here by calling
+    // _handleError — which only writes a log line — giving the false impression
+    // the case was covered. Deliberately not duplicated. See docs/audio-play-bug.md.
   }
 
   void _handleProcessingState(ProcessingState state) {
@@ -264,13 +269,39 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         LoggerService.info('🎵 AUDIO STATE: Ready (actively streaming)');
         break;
       case ProcessingState.completed:
-        LoggerService.info('🎵 AUDIO STATE: Completed');
+        // A 24/7 live stream HAS NO END. Reaching `completed` therefore always
+        // means the stream died — typically the buffer drained with a dead
+        // socket behind it. It is NEVER a normal end of playback.
+        //
+        // This used to fall through to a log line and nothing else, which is
+        // exactly why the "plays the cache then STOPS" bug was silent: no
+        // reconnect, no error, no modal — the app just went quiet.
+        // See docs/audio-play-bug.md.
+        LoggerService.audioError(
+            '🎵 AUDIO STATE: Completed on a LIVE stream = stream died - reconnecting');
+        if (_reconnectEnabled) {
+          _reconnect();
+        } else {
+          // Reconnect is halted (server confirmed down / user dismissed).
+          // Surface the failure rather than dying quietly.
+          playbackState.add(playbackState.value.copyWith(
+            processingState: AudioProcessingState.error,
+            playing: false,
+          ));
+        }
         break;
     }
   }
 
+  /// LOG ONLY — this does NOT recover, retry, or change state.
+  ///
+  /// Named `_handleError` historically, which read as "the error is handled"
+  /// and hid a release-blocking bug: the live-stream `completed` path called
+  /// this and nothing else, so a dead stream produced one log line and silence.
+  /// Callers that need recovery MUST invoke _reconnect() or set an error
+  /// playbackState themselves. See docs/audio-play-bug.md.
   void _handleError(dynamic error) {
-    LoggerService.audioError('Audio error', error);
+    LoggerService.audioError('Audio error (logged only, not recovered)', error);
   }
 
   // Samsung/Android: pressing a media button while the stream is loading causes
@@ -373,6 +404,23 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> play() async {
     try {
+      // iOS LOCK-SCREEN FLASH FIX: This runs for EVERY play — the in-app button
+      // AND the lock-screen button both reach here. Reclaim the Now Playing slot
+      // for WBAI *immediately*, from the native cache, BEFORE the source rebuild
+      // below. Without this, the lock-screen slot belongs to the previously-used
+      // audio app (Spotify/Music) during the ~2.6s reconnect and its art/metadata
+      // flash before WBAI appears.
+      //
+      // This is the ONLY correct place to fix the flash. Do NOT suppress it by
+      // resuming a stale buffer in the rebuild below — see docs/audio-play-bug.md.
+      if (Platform.isIOS) {
+        try {
+          await _nativeChannel.invokeMethod('reassertNowPlaying');
+        } catch (e) {
+          LoggerService.error('reassertNowPlaying failed: $e');
+        }
+      }
+
       // PHASE 5/10: a fresh play attempt re-enables the reconnect loop that a
       // prior server-down may have halted, and resets the attempt counter.
       _reconnectEnabled = true;
@@ -385,39 +433,62 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         LoggerService.warning('AudioHandler: Failed to gain audio focus');
       }
 
-      // DEVICE-LOG-PROVEN FIX (ported from KPFK 2026-06-23): On iOS, a fresh
-      // `await setAudioSource()` blocks ~2.6s connecting+buffering a new live
-      // AVPlayerItem. iOS only hands an app the lock-screen Now Playing slot once
-      // it's actually playing audio, so that whole gap shows the previously-used
-      // app (Spotify/Music) = the lock-screen flash.
+      // ══════════════════════════════════════════════════════════════════
+      // MANDATE (do not weaken, do not add a fast path):
+      //   The play button ALWAYS plays the LIVE stream and NEVER the cache.
+      // ══════════════════════════════════════════════════════════════════
       //
-      // So: if the source is still alive (paused, not stopped → processingState
-      // != idle), RESUME IN PLACE — restarts in ms, no gap, no flash. Only
-      // rebuild when the source is gone (idle, after stop / cold start) or on
-      // Android (which relies on a fresh source for guaranteed-live audio).
-      final bool sourceAlive = _player.audioSource != null &&
-          _player.processingState != ProcessingState.idle;
-      if (Platform.isIOS && sourceAlive) {
-        LoggerService.info(
-            '🎯 iOS RESUME-IN-PLACE: source alive (state=${_player.processingState}) - skipping rebuild, no buffering gap, no lock-screen flash');
-      } else {
-        LoggerService.info(
-            '🎯 CACHE FIX: rebuilding AudioSource (idle/cold or Android)');
-        // Guard the transient idle that setAudioSource emits so _broadcastState
-        // keeps the MediaItem and reports `loading` (not idle/STATE_NONE) —
-        // otherwise the Samsung lock screen drops the session and blanks.
-        _rebuildingSource = true;
-        try {
-          final directStreamUrl = await _resolveStreamUrl(_streamUrl);
-          await _player.setAudioSource(
-            AudioSource.uri(
-              Uri.parse(directStreamUrl),
-              tag: _currentMediaItem,
-            ),
-          );
-        } finally {
-          _rebuildingSource = false;
-        }
+      // play() therefore rebuilds the AudioSource UNCONDITIONALLY, on every
+      // invocation, on every platform. There is deliberately no branch here.
+      //
+      // HISTORY — why a branch existed, and why it must never come back
+      // (full writeup: docs/audio-play-bug.md, ported from KPFK 2026-08-18):
+      //
+      // A "resume in place" fast path gated on
+      //   sourceAlive = audioSource != null && processingState != idle
+      // was added to hide the ~2.6s `setAudioSource()` gap during which iOS
+      // leaves the lock-screen Now Playing slot on the previously-used audio
+      // app (Spotify/Music), whose art flashes.
+      //
+      // But `sourceAlive` answers "does an AVPlayerItem object still exist?".
+      // It does NOT answer "is the socket to the stream still open and
+      // delivering live bytes?" — and for a LIVE stream only the second
+      // question matters. After the app sits dormant, iOS suspends networking
+      // and the server drops the idle client; the socket is dead, but AVPlayer
+      // still holds the bytes it had already buffered. Resuming played that
+      // stale buffer — audio from minutes ago, i.e. THE CACHE — and then died
+      // when it drained, reporting `completed` and stopping silently.
+      //
+      // Elapsed time is not a fix either: a 5-second-old pause can have a dead
+      // socket just as easily as a 5-minute-old one. There is no safe window,
+      // so there is no window.
+      //
+      // On KPFK this was device-proven on 2026-08-18: with the rebuild made
+      // unconditional, switching repeatedly between Spotify/Music and the radio
+      // app produced NO flash — the native `reassertNowPlaying` pre-claim
+      // already handles it on its own. Rebuilding costs ~1.5s play→Ready, well
+      // under the 2.6s that motivated the shortcut. If a flash ever appears,
+      // fix it in the NATIVE pre-claim — never by reintroducing a conditional
+      // resume here.
+      //
+      // test/live_stream_always_rebuilds_test.dart guards this invariant.
+      LoggerService.info(
+          '🎯 LIVE-ONLY: rebuilding AudioSource from the live edge (unconditional)');
+      // Guard the transient idle that setAudioSource emits so _broadcastState
+      // keeps the MediaItem and reports `loading` (not idle/STATE_NONE) —
+      // otherwise the Samsung lock screen drops the session and blanks.
+      _rebuildingSource = true;
+      try {
+        final directStreamUrl = await _resolveStreamUrl(_streamUrl);
+        await _player.setAudioSource(
+          AudioSource.uri(
+            Uri.parse(directStreamUrl),
+            tag: _currentMediaItem,
+          ),
+        );
+        LoggerService.info('🎯 LIVE-ONLY: Fresh AudioSource set at live edge');
+      } finally {
+        _rebuildingSource = false;
       }
 
       await _player.play();
@@ -592,8 +663,11 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> resetToColdStart() async {
     try {
       LoggerService.info('🎵 AudioHandler: Reset to cold-start requested');
-      await _player.pause();
-      await _player.seek(Duration.zero);
+      // stop() — not pause() — so the reset is genuinely COLD: it tears the
+      // loaded source down instead of leaving a buffered one behind. A "cold
+      // start" that left audio buffered was one of the feeders of the
+      // stale-cache bug. See docs/audio-play-bug.md (D8).
+      await _player.stop();
 
       // EXPERT: Use resolved direct stream URL
       final directStreamUrl = await _resolveStreamUrl(_streamUrl);
@@ -680,8 +754,17 @@ class WBAIAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       LoggerService.info('🎵 AudioHandler: Fetching M3U playlist from: $url');
 
-      // Fetch M3U playlist content
-      final response = await http.get(Uri.parse(url));
+      // Fetch M3U playlist content. The timeout matters: play() now always
+      // rebuilds through here, and on a half-open network after resume an
+      // untimed GET can hang forever behind the spinner. On timeout we fall
+      // through to the catch below, which returns the original URL. (D7)
+      //
+      // WBAI currently streams a DIRECT url, so this path early-returns and
+      // never fires — the timeout is here for parity, and matters the moment
+      // WBAI migrates to an M3U playlist like KPFK.
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 6));
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch M3U playlist: ${response.statusCode}');
       }

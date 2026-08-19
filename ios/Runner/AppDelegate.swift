@@ -43,6 +43,16 @@ import AVFoundation
             switch call.method {
             case "updateMetadata":
                 self.handleUpdateMetadata(call: call, result: result)
+            case "reassertNowPlaying":
+                // Called the instant play() runs (in-app OR lock screen).
+                // Re-claim the lock-screen Now Playing slot from cache
+                // IMMEDIATELY, before the ~2.6s setAudioSource rebuild, so the
+                // previously-used audio app (Spotify/Music) can't keep showing
+                // during WBAI's reconnect. This is the ONLY correct fix for the
+                // lock-screen flash — see docs/audio-play-bug.md. Never suppress
+                // the flash by resuming a stale buffer in play() instead.
+                self.reassertNowPlaying()
+                result(true)
             case "keepAudioSessionAlive":
                 self.configureAudioSession()
                 result(true)
@@ -72,6 +82,37 @@ import AVFoundation
     }
 
     // MARK: - Remote Commands
+
+    /// Claim the lock-screen Now Playing slot for WBAI instantly, from cached
+    /// metadata, without waiting for playback to start.
+    ///
+    /// iOS only hands the slot to an app once it is ACTUALLY playing audio, so
+    /// during play()'s ~2.6s source rebuild the previously-used audio app keeps
+    /// the slot — that is the "flash". Pushing nowPlayingInfo up front reclaims
+    /// it right away. Device-proven on KPFK (2026-08-18): with this in place,
+    /// switching repeatedly between Spotify/Music and the radio app shows no
+    /// flash even though play() rebuilds unconditionally every time.
+    private func reassertNowPlaying() {
+        self.configureAudioSession()
+        guard let title = lastTitle, let artist = lastArtist else {
+            print("[REMOTE] reassertNowPlaying - no cached metadata yet, skipping")
+            return
+        }
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: title,
+            MPMediaItemPropertyArtist: artist,
+            MPMediaItemPropertyAlbumTitle: "WBAI 99.5 FM",
+            MPNowPlayingInfoPropertyPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
+            MPMediaItemPropertyMediaType: MPMediaType.anyAudio.rawValue
+        ]
+        if let art = self.cachedArtwork {
+            info[MPMediaItemPropertyArtwork] = art
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        print("[REMOTE] ⚡ reassertNowPlaying - reclaimed slot for WBAI (cachedArtwork: \(self.cachedArtwork != nil))")
+    }
 
     private func setupRemoteCommandCenter() {
         let commandCenter = MPRemoteCommandCenter.shared()

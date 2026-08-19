@@ -263,7 +263,19 @@ class StreamRepository implements StreamSource {
             }
             break;
           case AudioProcessingState.completed:
-            _updateState(StreamState.stopped);
+            // A 24/7 live stream HAS NO END, so `completed` is ALWAYS a
+            // failure — never a clean stop.
+            //
+            // This used to map to StreamState.stopped, i.e. treated exactly
+            // like the user pressing stop: watchdog cancelled, _awaitingPlay
+            // cleared, NO notice raised. That is why the "plays the cache then
+            // STOPS" bug was completely silent to the listener. The handler is
+            // already reconnecting; route through the error classifier so that
+            // if the reconnect chain exhausts, the listener actually gets told.
+            // See docs/audio-play-bug.md.
+            LoggerService.warning(
+                '🎵 StreamRepository: LIVE stream reported completed - treating as failure, not a stop');
+            _onPlayerError();
             break;
           case AudioProcessingState.idle:
             // Guard: on Android, setAudioSource briefly emits idle before
